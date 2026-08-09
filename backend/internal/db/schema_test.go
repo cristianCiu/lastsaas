@@ -50,3 +50,34 @@ func TestAllSchemasIncludesStrictLocationsSchema(t *testing.T) {
 		t.Fatal("locations schema must include tenantId, limitSlot, and version")
 	}
 }
+
+func TestRestaurantCollectionsUseStrictCriticalSchemas(t *testing.T) {
+	want := map[string]int{"restaurant_settings": 8, "storage_areas": 9}
+	for _, schema := range AllSchemas() {
+		requiredCount, ok := want[schema.Collection]
+		if !ok {
+			continue
+		}
+		if !schema.Critical || schema.ValidationLevel != "strict" {
+			t.Errorf("%s must be critical and strict", schema.Collection)
+		}
+		jsonSchema := schema.Schema["$jsonSchema"].(bson.M)
+		if additional, ok := jsonSchema["additionalProperties"].(bool); !ok || additional {
+			t.Errorf("%s must reject additional properties", schema.Collection)
+		}
+		if required := jsonSchema["required"].(bson.A); len(required) != requiredCount {
+			t.Errorf("%s required fields: %#v", schema.Collection, required)
+		}
+		if schema.Collection == "storage_areas" {
+			properties := jsonSchema["properties"].(bson.M)
+			name := properties["name"].(bson.M)
+			if name["pattern"] != `.*\S.*` {
+				t.Errorf("storage area names must require non-whitespace: %#v", name)
+			}
+		}
+		delete(want, schema.Collection)
+	}
+	for missing := range want {
+		t.Errorf("%s schema missing from AllSchemas", missing)
+	}
+}

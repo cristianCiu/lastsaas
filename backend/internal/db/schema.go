@@ -37,6 +37,43 @@ func AllSchemas() []CollectionSchema {
 		ssoConnectionsSchema(),
 		eventDefinitionsSchema(),
 		locationsSchema(),
+		restaurantSettingsSchema(),
+		storageAreasSchema(),
+	}
+}
+
+func restaurantSettingsSchema() CollectionSchema {
+	return CollectionSchema{
+		Collection: "restaurant_settings", Critical: true, ValidationLevel: "strict",
+		Schema: bson.M{"$jsonSchema": bson.M{
+			"bsonType": "object", "additionalProperties": false,
+			"required": bson.A{"_id", "tenantId", "currency", "language", "defaultTimezone", "version", "createdAt", "updatedAt"},
+			"properties": bson.M{
+				"_id": bson.M{"bsonType": "objectId"}, "tenantId": bson.M{"bsonType": "objectId"},
+				"currency":        bson.M{"bsonType": "string", "pattern": `^[A-Z]{3}$`},
+				"language":        bson.M{"bsonType": "string", "pattern": `^[a-z]{2}(?:-[A-Z]{2})?$`},
+				"defaultTimezone": bson.M{"bsonType": "string", "minLength": 1, "maxLength": 100},
+				"version":         bson.M{"bsonType": "long", "minimum": 1},
+				"createdAt":       bson.M{"bsonType": "date"}, "updatedAt": bson.M{"bsonType": "date"},
+			},
+		}},
+	}
+}
+
+func storageAreasSchema() CollectionSchema {
+	return CollectionSchema{
+		Collection: "storage_areas", Critical: true, ValidationLevel: "strict",
+		Schema: bson.M{"$jsonSchema": bson.M{
+			"bsonType": "object", "additionalProperties": false,
+			"required": bson.A{"_id", "tenantId", "locationId", "name", "type", "isActive", "version", "createdAt", "updatedAt"},
+			"properties": bson.M{
+				"_id": bson.M{"bsonType": "objectId"}, "tenantId": bson.M{"bsonType": "objectId"}, "locationId": bson.M{"bsonType": "objectId"},
+				"name":     bson.M{"bsonType": "string", "minLength": 1, "maxLength": 200, "pattern": `.*\S.*`},
+				"type":     bson.M{"bsonType": "string", "enum": bson.A{"refrigerated", "frozen", "bar", "dry", "other"}},
+				"isActive": bson.M{"bsonType": "bool"}, "version": bson.M{"bsonType": "long", "minimum": 1},
+				"createdAt": bson.M{"bsonType": "date"}, "updatedAt": bson.M{"bsonType": "date"},
+			},
+		}},
 	}
 }
 

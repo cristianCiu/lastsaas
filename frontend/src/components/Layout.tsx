@@ -37,8 +37,6 @@ export default function Layout() {
   );
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const isActive = (path: string) => location.pathname === path;
-
   useEffect(() => {
     if (isAuthenticated) {
       Promise.allSettled([
@@ -91,10 +89,10 @@ export default function Layout() {
     ...(showTeam ? [{ path: '/team', icon: Users, label: 'Team' }] : []),
     { path: '/plan', icon: CreditCard, label: 'Plan' },
     { path: '/settings', icon: Settings, label: 'Settings' },
-    { path: '/settings/locations', icon: MapPin, label: 'Locations' },
   ];
 
-  const navItems = branding.navItems.length > 0
+  const hasCustomNavigation = branding.navItems.length > 0;
+  const navItems = hasCustomNavigation
     ? branding.navItems
         .filter(item => item.visible)
         .filter(item => {
@@ -146,7 +144,11 @@ export default function Layout() {
                       key={item.path}
                       to={item.path}
                       className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
-                        isActive(item.path)
+                        (hasCustomNavigation
+                          ? location.pathname === item.path
+                          : item.path === '/settings'
+                            ? location.pathname === item.path
+                            : location.pathname === item.path || location.pathname.startsWith(`${item.path}/`))
                           ? 'bg-primary-500/20 text-primary-400'
                           : 'text-dark-400 hover:text-white hover:bg-dark-800/50'
                       }`}

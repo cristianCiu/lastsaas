@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-Phase 1A: product security boundary and locations.
+Phase 1B: restaurant settings and location-scoped storage areas.
 
 ## Completed
 
@@ -22,6 +22,12 @@ Phase 1A: product security boundary and locations.
 - Active-location selection is persisted per tenant, excludes inactive locations, resets safely across tenant/logout transitions, and is not loaded for the root platform tenant.
 - Atlas-backed location tests pass for authentication, role enforcement, tenant isolation, hidden persistence fields, duplicate codes, default/numeric plan limits, and concurrent creation.
 - Atlas-backed schema application succeeds and MongoDB rejects malformed location documents.
+- Tenant-unique restaurant settings support virtual EUR/de/Europe/Berlin defaults, strict validated updates, optimistic concurrency, audit logging, and tenant-isolated caching.
+- Location-scoped storage areas support strict types, unique names per location, create/update/deactivate/reactivate lifecycle operations, optimistic concurrency, audit logging, and tenant/location isolation.
+- Storage-area APIs remain owner/admin-only until staff profiles can enforce independent location authorization.
+- Strict critical MongoDB schemas and indexes cover restaurant settings and storage areas, including rejection of whitespace-only names and invalid enum values.
+- Responsive restaurant and storage-area settings pages include workspace navigation, active-location scoping, read-only and empty states, version-conflict recovery, and mutation race isolation.
+- Frontend verification now covers 30 tests across eight files; lint and the production build pass.
 
 ## Baseline Fixes
 
@@ -33,13 +39,13 @@ Phase 1A: product security boundary and locations.
 
 ## Blocked External Verification
 
-- The complete legacy Atlas suite is currently intermittent because the free replica set temporarily reports no primary after repeated connection churn. Location and schema integration suites pass independently; Stripe also passes independently. This is tracked separately from deterministic code failures.
+- The complete legacy Atlas suite is currently intermittent because the free replica set temporarily reports no primary or times out during connection checkout after repeated connection churn. Location, restaurant settings, storage area, and schema integration suites pass independently when Atlas is available; Stripe also passes independently. This is tracked separately from deterministic code failures.
 - Authenticated Playwright flows require a running, seeded backend and stable test database.
 - Container build verification requires Docker/WSL integration, which is not currently available.
 
 ## Active Task
 
-Implement restaurant settings and storage areas on top of the proven tenant/location scope, then add staff location permissions before broader operational data.
+Implement staff profiles, business roles, and independent location permissions before exposing storage areas or broader operational data to non-admin staff.
 
 ## Known Follow-Ups
 

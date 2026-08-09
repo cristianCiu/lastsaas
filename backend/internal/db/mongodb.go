@@ -77,6 +77,19 @@ func (m *MongoDB) ensureIndexes() {
 			},
 		},
 		{
+			"restaurant_settings",
+			[]mongo.IndexModel{
+				{Keys: bson.D{{Key: "tenantId", Value: 1}}, Options: options.Index().SetName("restaurant_settings_tenant_unique").SetUnique(true)},
+			},
+		},
+		{
+			"storage_areas",
+			[]mongo.IndexModel{
+				{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "locationId", Value: 1}, {Key: "name", Value: 1}}, Options: options.Index().SetName("storage_areas_tenant_location_name_unique").SetUnique(true)},
+				{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "locationId", Value: 1}, {Key: "isActive", Value: 1}}, Options: options.Index().SetName("storage_areas_tenant_location_active")},
+			},
+		},
+		{
 			"users",
 			[]mongo.IndexModel{
 				{Keys: bson.D{{Key: "email", Value: 1}}, Options: options.Index().SetUnique(true).SetSparse(true)},
@@ -330,7 +343,7 @@ func (m *MongoDB) ensureIndexes() {
 		"api_keys": true, "config_vars": true, "stripe_mappings": true,
 		"custom_pages": true, "branding_assets": true, "webauthn_credentials": true,
 		"sso_connections": true, "auth_codes": true,
-		"locations": true,
+		"locations": true, "restaurant_settings": true, "storage_areas": true,
 	}
 
 	for _, idx := range indexes {
@@ -504,4 +517,12 @@ func (m *MongoDB) EventDefinitions() *mongo.Collection {
 
 func (m *MongoDB) Locations() *mongo.Collection {
 	return m.Database.Collection("locations")
+}
+
+func (m *MongoDB) RestaurantSettings() *mongo.Collection {
+	return m.Database.Collection("restaurant_settings")
+}
+
+func (m *MongoDB) StorageAreas() *mongo.Collection {
+	return m.Database.Collection("storage_areas")
 }

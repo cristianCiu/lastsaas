@@ -6,6 +6,7 @@ import Alert from '../../components/ui/Alert';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import TableSkeleton from '../../components/TableSkeleton';
+import WorkspaceSettingsNav from '../../components/WorkspaceSettingsNav';
 import { useTenant } from '../../contexts/TenantContext';
 import { useActiveLocation } from '../../contexts/ActiveLocationContext';
 import { getErrorMessage } from '../../utils/errors';
@@ -171,6 +172,8 @@ export default function LocationsPage() {
           </div>
         )}
       </header>
+
+      <WorkspaceSettingsNav />
 
       {!canCreate && !unauthorized && (
         <Alert variant="info" className="flex items-start gap-2 p-4">

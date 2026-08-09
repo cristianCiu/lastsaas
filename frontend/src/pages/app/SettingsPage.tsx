@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { Settings } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useBranding } from '../../contexts/BrandingContext';
+import WorkspaceSettingsNav from '../../components/WorkspaceSettingsNav';
 import ProfileTab from './settings/ProfileTab';
 import SecurityTab from './settings/SecurityTab';
 import SessionsTab from './settings/SessionsTab';
@@ -26,12 +27,17 @@ export default function SettingsPage() {
 
   return (
     <div>
-      <div className="mb-8">
+      <div className="mb-6">
         <h1 className="text-2xl font-bold text-white flex items-center gap-3">
           <Settings className="w-7 h-7 text-primary-400" />
           Settings
         </h1>
         <p className="text-dark-400 mt-1">Manage your account</p>
+      </div>
+
+      <div className="mb-8">
+        <WorkspaceSettingsNav />
+        <p className="mt-2 text-xs text-dark-500">Account settings apply to you. Workspace settings apply to the active tenant and its locations.</p>
       </div>
 
       {/* Tab Navigation */}

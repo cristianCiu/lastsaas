@@ -14,7 +14,11 @@ import (
 
 var v *validator.Validate
 
-var locationCodePattern = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
+var (
+	locationCodePattern = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
+	currencyCodePattern = regexp.MustCompile(`^[A-Z]{3}$`)
+	languageTagPattern  = regexp.MustCompile(`^[a-z]{2}(?:-[A-Z]{2})?$`)
+)
 
 func init() {
 	v = validator.New()
@@ -62,6 +66,15 @@ func init() {
 	})
 	v.RegisterValidation("location_code", func(fl validator.FieldLevel) bool {
 		return locationCodePattern.MatchString(fl.Field().String())
+	})
+	v.RegisterValidation("currency_code", func(fl validator.FieldLevel) bool {
+		return currencyCodePattern.MatchString(fl.Field().String())
+	})
+	v.RegisterValidation("language_tag", func(fl validator.FieldLevel) bool {
+		return languageTagPattern.MatchString(fl.Field().String())
+	})
+	v.RegisterValidation("storage_area_type", func(fl validator.FieldLevel) bool {
+		return models.ValidStorageAreaType(models.StorageAreaType(fl.Field().String()))
 	})
 	v.RegisterValidation("iana_timezone", func(fl validator.FieldLevel) bool {
 		name := fl.Field().String()

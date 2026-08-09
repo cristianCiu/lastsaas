@@ -353,3 +353,44 @@ func TestValidate_LocationRequiresIANATimezone(t *testing.T) {
 		}
 	}
 }
+
+func validRestaurantSettings() models.RestaurantSettings {
+	now := time.Now()
+	return models.RestaurantSettings{TenantID: primitive.NewObjectID(), Currency: "EUR", Language: "de-DE", DefaultTimezone: "Europe/Berlin", Version: 1, CreatedAt: now, UpdatedAt: now}
+}
+
+func TestValidate_RestaurantSettings(t *testing.T) {
+	settings := validRestaurantSettings()
+	if err := Validate(&settings); err != nil {
+		t.Fatalf("expected valid restaurant settings: %v", err)
+	}
+	for _, mutate := range []func(*models.RestaurantSettings){
+		func(s *models.RestaurantSettings) { s.Currency = "EURO" },
+		func(s *models.RestaurantSettings) { s.Currency = "eur" },
+		func(s *models.RestaurantSettings) { s.Language = "de-de" },
+		func(s *models.RestaurantSettings) { s.Language = "german" },
+		func(s *models.RestaurantSettings) { s.DefaultTimezone = "Europe/Nowhere" },
+	} {
+		invalid := validRestaurantSettings()
+		mutate(&invalid)
+		if err := Validate(&invalid); err == nil {
+			t.Errorf("expected invalid restaurant settings to fail: %#v", invalid)
+		}
+	}
+}
+
+func TestValidate_StorageArea(t *testing.T) {
+	now := time.Now()
+	valid := models.StorageArea{TenantID: primitive.NewObjectID(), LocationID: primitive.NewObjectID(), Name: "Walk-in", Type: models.StorageAreaRefrigerated, IsActive: true, Version: 1, CreatedAt: now, UpdatedAt: now}
+	if err := Validate(&valid); err != nil {
+		t.Fatalf("expected valid storage area: %v", err)
+	}
+	for _, area := range []models.StorageArea{
+		{TenantID: valid.TenantID, LocationID: valid.LocationID, Name: "", Type: valid.Type, Version: 1, CreatedAt: now, UpdatedAt: now},
+		{TenantID: valid.TenantID, LocationID: valid.LocationID, Name: "Walk-in", Type: "warehouse", Version: 1, CreatedAt: now, UpdatedAt: now},
+	} {
+		if err := Validate(&area); err == nil {
+			t.Errorf("expected invalid storage area to fail: %#v", area)
+		}
+	}
+}

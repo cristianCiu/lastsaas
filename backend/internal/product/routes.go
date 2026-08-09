@@ -18,7 +18,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-type locationsHandler struct {
+type productHandler struct {
 	db     *db.MongoDB
 	logger *syslog.Logger
 }
@@ -26,20 +26,26 @@ type locationsHandler struct {
 // RegisterRoutes installs all product routes beneath an already guarded API
 // router. Production and integration tests call this same registration path.
 func RegisterRoutes(guarded *mux.Router, database *db.MongoDB, auth *middleware.AuthMiddleware, tenant *middleware.TenantMiddleware, logger *syslog.Logger) {
-	handler := &locationsHandler{db: database, logger: logger}
+	handler := &productHandler{db: database, logger: logger}
 	productAPI := guarded.PathPrefix("/product").Subrouter()
 	productAPI.Use(auth.RequireAuth)
 	productAPI.Use(tenant.RequireTenant)
 	productAPI.Use(middleware.RequireActiveBilling())
 	productAPI.HandleFunc("/locations", handler.list).Methods(http.MethodGet)
+	productAPI.HandleFunc("/restaurant-settings", handler.getRestaurantSettings).Methods(http.MethodGet)
 
 	productWrite := productAPI.PathPrefix("").Subrouter()
 	productWrite.Use(middleware.RequireRole(models.RoleAdmin))
 	productWrite.HandleFunc("/locations", handler.create).Methods(http.MethodPost)
 	productWrite.HandleFunc("/locations/{locationId}", handler.update).Methods(http.MethodPatch)
+	productWrite.HandleFunc("/restaurant-settings", handler.putRestaurantSettings).Methods(http.MethodPut)
+	// Storage access stays admin/owner-only until staff-profile authorization can scope it safely.
+	productWrite.HandleFunc("/locations/{locationId}/storage-areas", handler.listStorageAreas).Methods(http.MethodGet)
+	productWrite.HandleFunc("/locations/{locationId}/storage-areas", handler.createStorageArea).Methods(http.MethodPost)
+	productWrite.HandleFunc("/locations/{locationId}/storage-areas/{storageAreaId}", handler.updateStorageArea).Methods(http.MethodPatch)
 }
 
-func (h *locationsHandler) update(w http.ResponseWriter, r *http.Request) {
+func (h *productHandler) update(w http.ResponseWriter, r *http.Request) {
 	tenant, ok := middleware.GetTenantFromContext(r.Context())
 	if !ok {
 		apierror.BadRequest(w, r, "Tenant context required")
@@ -117,7 +123,7 @@ func (h *locationsHandler) update(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *locationsHandler) list(w http.ResponseWriter, r *http.Request) {
+func (h *productHandler) list(w http.ResponseWriter, r *http.Request) {
 	tenant, ok := middleware.GetTenantFromContext(r.Context())
 	if !ok {
 		apierror.BadRequest(w, r, "Tenant context required")
@@ -131,7 +137,7 @@ func (h *locationsHandler) list(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"locations": locations})
 }
 
-func (h *locationsHandler) create(w http.ResponseWriter, r *http.Request) {
+func (h *productHandler) create(w http.ResponseWriter, r *http.Request) {
 	tenant, ok := middleware.GetTenantFromContext(r.Context())
 	if !ok {
 		apierror.BadRequest(w, r, "Tenant context required")

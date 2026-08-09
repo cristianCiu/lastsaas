@@ -282,6 +282,42 @@ func apiReference() []apiSection {
 			},
 		},
 		{
+			Title: "Restaurant Settings",
+			Endpoints: []apiEndpoint{
+				{
+					Method: "GET", Path: "/api/product/restaurant-settings", Summary: "Get restaurant settings",
+					Detail: "Returns tenant restaurant settings to any tenant member. If no settings exist, returns EUR, de, Europe/Berlin, and version 0 without creating a document.", Auth: "jwt+tenant",
+					Response: `{"settings":{"currency":"EUR","language":"de","defaultTimezone":"Europe/Berlin","version":0}}`,
+				},
+				{
+					Method: "PUT", Path: "/api/product/restaurant-settings", Summary: "Replace restaurant settings",
+					Detail: "Requires owner or admin role and the complete body. Currency and language are normalized. Version 0 creates initial settings; later writes use optimistic concurrency and stale versions return VERSION_CONFLICT.", Auth: "admin",
+					Body:     `{"currency":"EUR","language":"de-DE","defaultTimezone":"Europe/Berlin","version":0}`,
+					Response: `{"settings":{"id":"...","currency":"EUR","language":"de-DE","defaultTimezone":"Europe/Berlin","version":1,"createdAt":"...","updatedAt":"..."}}`,
+				},
+			},
+		},
+		{
+			Title: "Storage Areas",
+			Endpoints: []apiEndpoint{
+				{
+					Method: "GET", Path: "/api/product/locations/{locationId}/storage-areas", Summary: "List location storage areas",
+					Detail: "Lists storage areas scoped to the current tenant and path location. Requires owner or admin role.", Auth: "admin", Params: []apiParam{{"locationId", "ObjectID", true, "The tenant location ID"}},
+					Response: `{"storageAreas":[{"id":"...","locationId":"...","name":"Walk-in","type":"refrigerated","isActive":true,"version":1,"createdAt":"...","updatedAt":"..."}]}`,
+				},
+				{
+					Method: "POST", Path: "/api/product/locations/{locationId}/storage-areas", Summary: "Create a storage area",
+					Detail: "Creates an active storage area. Name is trimmed and unique within the tenant location. Type is refrigerated, frozen, bar, dry, or other. Scope IDs in the body are rejected.", Auth: "admin", Params: []apiParam{{"locationId", "ObjectID", true, "The tenant location ID"}},
+					Body: `{"name":"Walk-in","type":"refrigerated"}`, Response: `{"storageArea":{"id":"...","locationId":"...","name":"Walk-in","type":"refrigerated","isActive":true,"version":1,"createdAt":"...","updatedAt":"..."}}`,
+				},
+				{
+					Method: "PATCH", Path: "/api/product/locations/{locationId}/storage-areas/{storageAreaId}", Summary: "Update or deactivate a storage area",
+					Detail: "Requires version and at least one mutable field. Stale versions return VERSION_CONFLICT; a storage area outside the current tenant or location returns NOT_FOUND.", Auth: "admin", Params: []apiParam{{"locationId", "ObjectID", true, "The tenant location ID"}, {"storageAreaId", "ObjectID", true, "The storage area ID"}},
+					Body: `{"version":1,"name":"Cold room","type":"frozen","isActive":false}`, Response: `{"storageArea":{"id":"...","locationId":"...","name":"Cold room","type":"frozen","isActive":false,"version":2,"createdAt":"...","updatedAt":"..."}}`,
+				},
+			},
+		},
+		{
 			Title: "Messages",
 			Endpoints: []apiEndpoint{
 				{
