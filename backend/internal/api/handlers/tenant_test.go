@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -8,6 +9,8 @@ import (
 
 	"lastsaas/internal/models"
 	"lastsaas/internal/testutil"
+
+	"go.mongodb.org/mongo-driver/bson"
 )
 
 // --- ListMembers ---
@@ -314,6 +317,9 @@ func TestIntegration_RemoveMember_AdminRemovesUser(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
 	}
+	if count, err := env.DB.StaffProfiles().CountDocuments(context.Background(), bson.M{"tenantId": tenant.ID, "userId": user.ID}); err != nil || count != 0 {
+		t.Fatalf("removed member staff profiles = %d, err %v", count, err)
+	}
 }
 
 func TestIntegration_RemoveMember_OwnerRemovesAdmin(t *testing.T) {
@@ -334,6 +340,32 @@ func TestIntegration_RemoveMember_OwnerRemovesAdmin(t *testing.T) {
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+}
+
+func TestIntegration_RemoveMemberRollsBackWhenProfileMissing(t *testing.T) {
+	env := setupTestServer(t)
+	defer env.Cleanup()
+	testutil.MarkSystemInitialized(t, env.DB)
+	owner := testutil.CreateTestUser(t, env.DB, "rollback-owner@test.com", "Test1234!@#$", "Owner")
+	tenant := testutil.CreateTestTenant(t, env.DB, "Rollback Tenant", owner.ID, false)
+	member := testutil.CreateTestUser(t, env.DB, "rollback-member@test.com", "Test1234!@#$", "Member")
+	testutil.CreateTestMembership(t, env.DB, member.ID, tenant.ID, models.RoleUser)
+	if _, err := env.DB.StaffProfiles().DeleteOne(context.Background(), bson.M{"tenantId": tenant.ID, "userId": member.ID}); err != nil {
+		t.Fatal(err)
+	}
+
+	req := env.tenantRequest(t, http.MethodDelete, "/api/tenant/members/"+member.ID.Hex(), nil, owner, tenant.ID.Hex())
+	resp, err := env.Client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", resp.StatusCode)
+	}
+	if count, err := env.DB.TenantMemberships().CountDocuments(context.Background(), bson.M{"tenantId": tenant.ID, "userId": member.ID}); err != nil || count != 1 {
+		t.Fatalf("membership was not rolled back: count=%d err=%v", count, err)
 	}
 }
 
@@ -534,6 +566,19 @@ func TestIntegration_TransferOwnership_OwnerTransfersToMember(t *testing.T) {
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+	var newOwnerProfile, formerOwnerProfile models.StaffProfile
+	if err := env.DB.StaffProfiles().FindOne(context.Background(), bson.M{"tenantId": tenant.ID, "userId": admin.ID}).Decode(&newOwnerProfile); err != nil {
+		t.Fatalf("load new owner profile: %v", err)
+	}
+	if err := env.DB.StaffProfiles().FindOne(context.Background(), bson.M{"tenantId": tenant.ID, "userId": owner.ID}).Decode(&formerOwnerProfile); err != nil {
+		t.Fatalf("load former owner profile: %v", err)
+	}
+	if newOwnerProfile.BusinessRole != models.BusinessRoleCompanyOwner || !newOwnerProfile.AllLocations || newOwnerProfile.Status != models.StaffProfileActive {
+		t.Fatalf("new owner profile invariant not enforced: %#v", newOwnerProfile)
+	}
+	if formerOwnerProfile.BusinessRole != models.BusinessRoleOperationsManager || !formerOwnerProfile.AllLocations || formerOwnerProfile.Status != models.StaffProfileActive {
+		t.Fatalf("former owner profile not normalized: %#v", formerOwnerProfile)
 	}
 }
 

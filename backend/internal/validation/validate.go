@@ -76,6 +76,15 @@ func init() {
 	v.RegisterValidation("storage_area_type", func(fl validator.FieldLevel) bool {
 		return models.ValidStorageAreaType(models.StorageAreaType(fl.Field().String()))
 	})
+	v.RegisterValidation("business_role", func(fl validator.FieldLevel) bool {
+		return models.ValidBusinessRole(models.BusinessRole(fl.Field().String()))
+	})
+	v.RegisterValidation("business_permission", func(fl validator.FieldLevel) bool {
+		return models.ValidBusinessPermission(models.BusinessPermission(fl.Field().String()))
+	})
+	v.RegisterValidation("staff_profile_status", func(fl validator.FieldLevel) bool {
+		return models.ValidStaffProfileStatus(models.StaffProfileStatus(fl.Field().String()))
+	})
 	v.RegisterValidation("iana_timezone", func(fl validator.FieldLevel) bool {
 		name := fl.Field().String()
 		if name == "Local" {
@@ -84,6 +93,34 @@ func init() {
 		_, err := time.LoadLocation(name)
 		return err == nil
 	})
+	v.RegisterStructValidation(validateStaffProfile, models.StaffProfile{})
+}
+
+func validateStaffProfile(sl validator.StructLevel) {
+	profile := sl.Current().Interface().(models.StaffProfile)
+	if profile.AllLocations && len(profile.LocationIDs) > 0 {
+		sl.ReportError(profile.LocationIDs, "LocationIDs", "locationIds", "all_locations_scope", "")
+	}
+	locations := make(map[string]struct{}, len(profile.LocationIDs))
+	for _, locationID := range profile.LocationIDs {
+		key := locationID.Hex()
+		if locationID.IsZero() {
+			sl.ReportError(profile.LocationIDs, "LocationIDs", "locationIds", "valid_object_id", "")
+		}
+		if _, exists := locations[key]; exists {
+			sl.ReportError(profile.LocationIDs, "LocationIDs", "locationIds", "unique", "")
+			break
+		}
+		locations[key] = struct{}{}
+	}
+	overrides := make(map[models.BusinessPermission]struct{}, len(profile.PermissionOverrides))
+	for _, override := range profile.PermissionOverrides {
+		if _, exists := overrides[override.Permission]; exists {
+			sl.ReportError(profile.PermissionOverrides, "PermissionOverrides", "permissionOverrides", "unique_permissions", "")
+			break
+		}
+		overrides[override.Permission] = struct{}{}
+	}
 }
 
 // Validate validates a struct using go-playground/validator tags.

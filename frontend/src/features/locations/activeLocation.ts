@@ -2,8 +2,8 @@ import type { Location } from './types';
 
 const ACTIVE_LOCATION_PREFIX = 'lastsaas_active_location';
 
-export function activeLocationStorageKey(tenantId: string): string {
-  return `${ACTIVE_LOCATION_PREFIX}:${tenantId}`;
+export function activeLocationStorageKey(principalId: string, tenantId: string): string {
+  return `${ACTIVE_LOCATION_PREFIX}:${principalId}:${tenantId}`;
 }
 
 export function resolveActiveLocation(locations: Location[], savedLocationId: string | null): Location | null {

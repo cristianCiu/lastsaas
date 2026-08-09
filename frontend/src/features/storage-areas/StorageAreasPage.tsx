@@ -9,7 +9,9 @@ import Input from '../../components/ui/Input';
 import Select from '../../components/ui/Select';
 import TableSkeleton from '../../components/TableSkeleton';
 import WorkspaceSettingsNav from '../../components/WorkspaceSettingsNav';
+import { useAuth } from '../../contexts/AuthContext';
 import { useActiveLocation } from '../../contexts/ActiveLocationContext';
+import { useStaffProfile } from '../../contexts/StaffProfileContext';
 import { useTenant } from '../../contexts/TenantContext';
 import { getErrorMessage } from '../../utils/errors';
 import { storageAreasApi } from './api';
@@ -25,12 +27,16 @@ function isVersionConflict(error: unknown) {
 }
 
 export default function StorageAreasPage() {
-  const { activeTenant, role } = useTenant();
+  const { user } = useAuth();
+  const { activeTenant } = useTenant();
+  const { profile, loading: profileLoading, error: profileError, missing: profileMissing, hasPermission } = useStaffProfile();
   const { activeLocation, loading: locationsLoading, error: locationsError } = useActiveLocation();
+  const principalId = user?.id ?? '';
   const tenantId = activeTenant?.tenantId ?? '';
   const locationId = activeLocation?.id ?? '';
-  const canManage = role === 'owner' || role === 'admin';
-  const scopeRef = useRef({ tenantId, locationId });
+  const canRead = hasPermission('storage_areas.read');
+  const canManage = hasPermission('storage_areas.manage');
+  const scopeRef = useRef({ principalId, tenantId, locationId });
   const queryClient = useQueryClient();
   const [form, setForm] = useState<CreateStorageAreaInput>(EMPTY_FORM);
   const [errors, setErrors] = useState<StorageAreaValidationErrors>({});
@@ -41,25 +47,25 @@ export default function StorageAreasPage() {
   const [success, setSuccess] = useState('');
 
   const storageQuery = useQuery({
-    queryKey: storageAreaKeys.list(tenantId, locationId),
+    queryKey: storageAreaKeys.list(principalId, tenantId, locationId),
     queryFn: () => storageAreasApi.list(locationId),
-    enabled: canManage && !!tenantId && !!locationId,
+    enabled: canRead && !!principalId && !!tenantId && !!locationId,
   });
 
-  const isCurrentScope = (scope: { tenantId: string; locationId: string }) =>
-    scopeRef.current.tenantId === scope.tenantId && scopeRef.current.locationId === scope.locationId;
+  const isCurrentScope = (scope: { principalId: string; tenantId: string; locationId: string }) =>
+    scopeRef.current.principalId === scope.principalId && scopeRef.current.tenantId === scope.tenantId && scopeRef.current.locationId === scope.locationId;
 
   const createArea = useMutation({
-    mutationFn: ({ locationId, input }: { tenantId: string; locationId: string; input: CreateStorageAreaInput }) => storageAreasApi.create(locationId, input),
+    mutationFn: ({ locationId, input }: { principalId: string; tenantId: string; locationId: string; input: CreateStorageAreaInput }) => storageAreasApi.create(locationId, input),
     onMutate: async (variables) => {
-      await queryClient.cancelQueries({ queryKey: storageAreaKeys.list(variables.tenantId, variables.locationId), exact: true });
+      await queryClient.cancelQueries({ queryKey: storageAreaKeys.list(variables.principalId, variables.tenantId, variables.locationId), exact: true });
       if (isCurrentScope(variables)) setSuccess('');
     },
     onSuccess: async ({ storageArea }, variables) => {
-      queryClient.setQueryData<{ storageAreas: StorageArea[] }>(storageAreaKeys.list(variables.tenantId, variables.locationId), (current) => current ? {
+      queryClient.setQueryData<{ storageAreas: StorageArea[] }>(storageAreaKeys.list(variables.principalId, variables.tenantId, variables.locationId), (current) => current ? {
         storageAreas: [...current.storageAreas, storageArea],
       } : { storageAreas: [storageArea] });
-      await queryClient.invalidateQueries({ queryKey: storageAreaKeys.list(variables.tenantId, variables.locationId), exact: true });
+      await queryClient.invalidateQueries({ queryKey: storageAreaKeys.list(variables.principalId, variables.tenantId, variables.locationId), exact: true });
       if (!isCurrentScope(variables)) return;
       setForm(EMPTY_FORM);
       setErrors({});
@@ -68,16 +74,16 @@ export default function StorageAreasPage() {
   });
 
   const updateArea = useMutation({
-    mutationFn: ({ locationId, id, input }: { tenantId: string; locationId: string; id: string; input: UpdateStorageAreaInput }) => storageAreasApi.update(locationId, id, input),
+    mutationFn: ({ locationId, id, input }: { principalId: string; tenantId: string; locationId: string; id: string; input: UpdateStorageAreaInput }) => storageAreasApi.update(locationId, id, input),
     onMutate: async (variables) => {
-      await queryClient.cancelQueries({ queryKey: storageAreaKeys.list(variables.tenantId, variables.locationId), exact: true });
+      await queryClient.cancelQueries({ queryKey: storageAreaKeys.list(variables.principalId, variables.tenantId, variables.locationId), exact: true });
       if (isCurrentScope(variables)) setSuccess('');
     },
     onSuccess: async ({ storageArea }, variables) => {
-      queryClient.setQueryData<{ storageAreas: StorageArea[] }>(storageAreaKeys.list(variables.tenantId, variables.locationId), (current) => current ? {
+      queryClient.setQueryData<{ storageAreas: StorageArea[] }>(storageAreaKeys.list(variables.principalId, variables.tenantId, variables.locationId), (current) => current ? {
         storageAreas: current.storageAreas.map((area) => area.id === storageArea.id ? storageArea : area),
       } : current);
-      await queryClient.invalidateQueries({ queryKey: storageAreaKeys.list(variables.tenantId, variables.locationId), exact: true });
+      await queryClient.invalidateQueries({ queryKey: storageAreaKeys.list(variables.principalId, variables.tenantId, variables.locationId), exact: true });
       if (!isCurrentScope(variables)) return;
       setEditingId(null);
       setToggleTarget(null);
@@ -86,7 +92,7 @@ export default function StorageAreasPage() {
     },
     onError: async (error, variables) => {
       if (!isVersionConflict(error)) return;
-      await queryClient.invalidateQueries({ queryKey: storageAreaKeys.list(variables.tenantId, variables.locationId), exact: true });
+      await queryClient.invalidateQueries({ queryKey: storageAreaKeys.list(variables.principalId, variables.tenantId, variables.locationId), exact: true });
       if (isCurrentScope(variables)) {
         setEditingId(null);
         setToggleTarget(null);
@@ -98,7 +104,7 @@ export default function StorageAreasPage() {
   const resetUpdateArea = updateArea.reset;
 
   useLayoutEffect(() => {
-    scopeRef.current = { tenantId, locationId };
+    scopeRef.current = { principalId, tenantId, locationId };
     setForm(EMPTY_FORM);
     setErrors({});
     setEditingId(null);
@@ -108,14 +114,14 @@ export default function StorageAreasPage() {
     setSuccess('');
     resetCreateArea();
     resetUpdateArea();
-  }, [tenantId, locationId, resetCreateArea, resetUpdateArea]);
+  }, [principalId, tenantId, locationId, resetCreateArea, resetUpdateArea]);
 
   const submitCreate = (event: FormEvent) => {
     event.preventDefault();
     const validationErrors = validateStorageArea(form);
     setErrors(validationErrors);
     if (!canManage || !tenantId || !locationId || Object.keys(validationErrors).length) return;
-    createArea.mutate({ tenantId, locationId, input: { name: form.name.trim(), type: form.type } });
+    createArea.mutate({ principalId, tenantId, locationId, input: { name: form.name.trim(), type: form.type } });
   };
 
   const startEditing = (area: StorageArea) => {
@@ -130,15 +136,17 @@ export default function StorageAreasPage() {
     const validationErrors = validateStorageArea(editForm);
     setEditErrors(validationErrors);
     if (Object.keys(validationErrors).length) return;
-    updateArea.mutate({ tenantId, locationId, id: area.id, input: { version: area.version, name: editForm.name.trim(), type: editForm.type } });
+    if (!canManage) return;
+    updateArea.mutate({ principalId, tenantId, locationId, id: area.id, input: { version: area.version, name: editForm.name.trim(), type: editForm.type } });
   };
 
   const toggleArea = (area: StorageArea) => {
-    updateArea.mutate({ tenantId, locationId, id: area.id, input: { version: area.version, isActive: !area.isActive } });
+    if (!canManage) return;
+    updateArea.mutate({ principalId, tenantId, locationId, id: area.id, input: { version: area.version, isActive: !area.isActive } });
   };
 
-  const createInScope = createArea.variables?.tenantId === tenantId && createArea.variables.locationId === locationId;
-  const updateInScope = updateArea.variables?.tenantId === tenantId && updateArea.variables.locationId === locationId;
+  const createInScope = createArea.variables?.principalId === principalId && createArea.variables.tenantId === tenantId && createArea.variables.locationId === locationId;
+  const updateInScope = updateArea.variables?.principalId === principalId && updateArea.variables.tenantId === tenantId && updateArea.variables.locationId === locationId;
   const createPending = createInScope && createArea.isPending;
   const updatePending = updateInScope && updateArea.isPending;
   const updateError = updateInScope && updateArea.isError
@@ -161,34 +169,43 @@ export default function StorageAreasPage() {
 
       <WorkspaceSettingsNav />
 
-      {!canManage && <Alert variant="info" className="flex items-start gap-2 p-4"><LockKeyhole className="mt-0.5 h-4 w-4 shrink-0" /><span><strong className="font-semibold">Read-only role.</strong> Storage areas are currently available only to workspace owners and admins.</span></Alert>}
+      {canRead && !canManage && <Alert variant="info" className="flex items-start gap-2 p-4"><LockKeyhole className="mt-0.5 h-4 w-4 shrink-0" /><span><strong className="font-semibold">Read-only access.</strong> You can view storage areas but cannot change them.</span></Alert>}
+      {canManage && !canRead && <Alert variant="info" className="flex items-start gap-2 p-4"><LockKeyhole className="mt-0.5 h-4 w-4 shrink-0" /><span><strong className="font-semibold">Create-only visibility.</strong> You may create storage areas at the selected location, but viewing and editing the list requires storage read access.</span></Alert>}
       {success && <Alert variant="success" className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />{success}</Alert>}
       {updateError && <Alert className="flex items-start gap-2"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />{updateError}</Alert>}
 
-      {locationsLoading ? (
+      {profileLoading ? (
+        <section className="overflow-hidden rounded-2xl border border-dark-800 bg-dark-900/50"><TableSkeleton rows={3} cols={3} /></section>
+      ) : profileError ? (
+        <section className="flex flex-col items-center rounded-2xl border border-dark-800 bg-dark-900/50 px-6 py-16 text-center"><AlertCircle className="mb-4 h-9 w-9 text-red-400" /><h2 className="font-semibold text-white">Could not load staff access</h2><p className="mt-2 max-w-md text-sm text-dark-400">{getErrorMessage(profileError)}</p></section>
+      ) : profileMissing ? (
+        <section className="flex flex-col items-center rounded-2xl border border-dark-800 bg-dark-900/50 px-6 py-16 text-center"><LockKeyhole className="mb-4 h-9 w-9 text-dark-500" /><h2 className="font-semibold text-white">Staff profile required</h2><p className="mt-2 max-w-md text-sm text-dark-400">Ask a workspace owner to create your staff profile and assign location access.</p></section>
+      ) : profile?.status === 'inactive' ? (
+        <section className="flex flex-col items-center rounded-2xl border border-dark-800 bg-dark-900/50 px-6 py-16 text-center"><LockKeyhole className="mb-4 h-9 w-9 text-dark-500" /><h2 className="font-semibold text-white">Staff profile inactive</h2><p className="mt-2 max-w-md text-sm text-dark-400">Your operational access has been deactivated. Contact a workspace owner.</p></section>
+      ) : !canRead && !canManage ? (
+        <section className="flex flex-col items-center rounded-2xl border border-dark-800 bg-dark-900/50 px-6 py-16 text-center"><LockKeyhole className="mb-4 h-9 w-9 text-dark-500" /><h2 className="font-semibold text-white">Storage area access unavailable</h2><p className="mt-2 max-w-md text-sm text-dark-400">Your staff profile does not grant permission to view storage areas.</p></section>
+      ) : locationsLoading ? (
         <section className="overflow-hidden rounded-2xl border border-dark-800 bg-dark-900/50"><TableSkeleton rows={3} cols={3} /></section>
       ) : locationsError ? (
         <section className="flex flex-col items-center rounded-2xl border border-dark-800 bg-dark-900/50 px-6 py-16 text-center"><AlertCircle className="mb-4 h-9 w-9 text-red-400" /><h2 className="font-semibold text-white">Could not determine the active location</h2><p className="mt-2 max-w-md text-sm text-dark-400">{getErrorMessage(locationsError)}</p></section>
       ) : !activeLocation ? (
         <section className="flex flex-col items-center rounded-2xl border border-dark-800 bg-dark-900/50 px-6 py-16 text-center"><MapPin className="mb-4 h-9 w-9 text-primary-400" /><h2 className="font-semibold text-white">Select an active location first</h2><p className="mt-2 max-w-md text-sm text-dark-400">Storage areas belong to one location. Create or activate a location, then select it from the location picker in the header.</p></section>
-      ) : !canManage ? (
-        <section className="flex flex-col items-center rounded-2xl border border-dark-800 bg-dark-900/50 px-6 py-16 text-center"><LockKeyhole className="mb-4 h-9 w-9 text-dark-500" /><h2 className="font-semibold text-white">Storage area access unavailable</h2><p className="mt-2 max-w-md text-sm text-dark-400">Ask a workspace owner or admin to manage storage areas for {activeLocation.name}.</p></section>
       ) : (
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
-          <section className="min-w-0 overflow-hidden rounded-2xl border border-dark-800 bg-dark-900/50">
+        <div className={`grid gap-6 ${canRead && canManage ? 'lg:grid-cols-[minmax(0,1fr)_22rem]' : ''}`}>
+          {canRead && <section className="min-w-0 overflow-hidden rounded-2xl border border-dark-800 bg-dark-900/50">
             <div className="border-b border-dark-800 px-5 py-4 sm:px-6"><h2 className="font-semibold text-white">Areas at {activeLocation.name}</h2><p className="mt-0.5 text-xs text-dark-500">{areas.length} {areas.length === 1 ? 'area' : 'areas'}</p></div>
             {storageQuery.isPending ? <TableSkeleton rows={3} cols={3} /> : storageQuery.isError ? (
               <div className="flex flex-col items-center px-6 py-16 text-center"><AlertCircle className="mb-4 h-9 w-9 text-red-400" /><h3 className="font-semibold text-white">Could not load storage areas</h3><p className="mt-2 max-w-md text-sm text-dark-400">{getErrorMessage(storageQuery.error)}</p><Button variant="secondary" className="mt-5 inline-flex items-center gap-2" onClick={() => storageQuery.refetch()}><RefreshCw className="h-4 w-4" />Retry</Button></div>
             ) : areas.length === 0 ? (
-              <div className="flex flex-col items-center px-6 py-16 text-center"><Snowflake className="mb-4 h-9 w-9 text-primary-400" /><h3 className="font-semibold text-white">No storage areas yet</h3><p className="mt-2 max-w-sm text-sm text-dark-400">Add the first area for {activeLocation.name} using the form.</p></div>
+              <div className="flex flex-col items-center px-6 py-16 text-center"><Snowflake className="mb-4 h-9 w-9 text-primary-400" /><h3 className="font-semibold text-white">No storage areas yet</h3><p className="mt-2 max-w-sm text-sm text-dark-400">{canManage ? `Add the first area for ${activeLocation.name} using the form.` : 'No areas have been configured at this location.'}</p></div>
             ) : (
               <ul className="divide-y divide-dark-800">{areas.map((area) => <li key={area.id} className="px-5 py-5 sm:px-6">
                 {editingId === area.id ? <div className="space-y-4"><div className="grid gap-4 sm:grid-cols-2"><Input id={`storage-area-edit-name-${area.id}`} label="Name" value={editForm.name} error={editErrors.name} disabled={updatePending} onChange={(event) => { setEditForm((current) => ({ ...current, name: event.target.value })); setEditErrors((current) => ({ ...current, name: undefined })); updateArea.reset(); }} /><Select id={`storage-area-edit-type-${area.id}`} label="Type" value={editForm.type} error={editErrors.type} disabled={updatePending} onChange={(event) => setEditForm((current) => ({ ...current, type: event.target.value as StorageAreaType }))}>{STORAGE_AREA_TYPES.map((type) => <option key={type} value={type}>{TYPE_LABELS[type]}</option>)}</Select></div><div className="flex justify-end gap-2"><Button variant="ghost" size="sm" onClick={() => setEditingId(null)} disabled={updatePending} className="inline-flex items-center gap-1.5"><X className="h-3.5 w-3.5" />Cancel</Button><Button size="sm" onClick={() => saveEdit(area)} disabled={updatePending} className="inline-flex items-center gap-1.5">{updatePending ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}Save changes</Button></div></div> :
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="font-medium text-white">{area.name}</h3><span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${area.isActive ? 'bg-accent-emerald/10 text-accent-emerald' : 'bg-dark-700 text-dark-400'}`}>{area.isActive ? 'Active' : 'Inactive'}</span></div><p className="mt-1 text-sm text-dark-400">{TYPE_LABELS[area.type]}</p></div><div className="flex gap-2"><Button variant="secondary" size="sm" onClick={() => startEditing(area)} disabled={updatePending || !area.isActive} className="inline-flex items-center gap-1.5"><Pencil className="h-3.5 w-3.5" />Edit</Button><Button variant={area.isActive ? 'danger' : 'secondary'} size="sm" onClick={() => area.isActive ? setToggleTarget(area) : toggleArea(area)} disabled={updatePending} className="inline-flex items-center gap-1.5">{updatePending && updateArea.variables?.id === area.id ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Power className="h-3.5 w-3.5" />}{area.isActive ? 'Deactivate' : 'Reactivate'}</Button></div></div>}
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="font-medium text-white">{area.name}</h3><span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${area.isActive ? 'bg-accent-emerald/10 text-accent-emerald' : 'bg-dark-700 text-dark-400'}`}>{area.isActive ? 'Active' : 'Inactive'}</span></div><p className="mt-1 text-sm text-dark-400">{TYPE_LABELS[area.type]}</p></div>{canManage && <div className="flex gap-2"><Button variant="secondary" size="sm" onClick={() => startEditing(area)} disabled={updatePending || !area.isActive} className="inline-flex items-center gap-1.5"><Pencil className="h-3.5 w-3.5" />Edit</Button><Button variant={area.isActive ? 'danger' : 'secondary'} size="sm" onClick={() => area.isActive ? setToggleTarget(area) : toggleArea(area)} disabled={updatePending} className="inline-flex items-center gap-1.5">{updatePending && updateArea.variables?.id === area.id ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Power className="h-3.5 w-3.5" />}{area.isActive ? 'Deactivate' : 'Reactivate'}</Button></div>}</div>}
               </li>)}</ul>
             )}
-          </section>
-          <aside className="h-fit rounded-2xl border border-dark-800 bg-dark-900/70 p-5 sm:p-6 lg:sticky lg:top-24"><div className="mb-5 flex items-center gap-3"><div className="rounded-lg bg-primary-500/10 p-2 text-primary-400"><Plus className="h-5 w-5" /></div><div><h2 className="font-semibold text-white">Add storage area</h2><p className="text-xs text-dark-500">At {activeLocation.name}</p></div></div>{createInScope && createArea.isError && <Alert className="mb-4">{getErrorMessage(createArea.error)}</Alert>}<form className="space-y-4" onSubmit={submitCreate} noValidate><Input id="storage-area-create-name" label="Name" value={form.name} error={errors.name} placeholder="Main cold room" disabled={createPending} onChange={(event) => { setForm((current) => ({ ...current, name: event.target.value })); setErrors((current) => ({ ...current, name: undefined })); createArea.reset(); }} /><Select id="storage-area-create-type" label="Type" value={form.type} error={errors.type} disabled={createPending} onChange={(event) => setForm((current) => ({ ...current, type: event.target.value as StorageAreaType }))}>{STORAGE_AREA_TYPES.map((type) => <option key={type} value={type}>{TYPE_LABELS[type]}</option>)}</Select><Button type="submit" className="flex w-full items-center justify-center gap-2 py-2.5" disabled={createPending}>{createPending ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}{createPending ? 'Creating...' : 'Create storage area'}</Button></form></aside>
+          </section>}
+          {canManage && <aside className="h-fit rounded-2xl border border-dark-800 bg-dark-900/70 p-5 sm:p-6 lg:sticky lg:top-24"><div className="mb-5 flex items-center gap-3"><div className="rounded-lg bg-primary-500/10 p-2 text-primary-400"><Plus className="h-5 w-5" /></div><div><h2 className="font-semibold text-white">Add storage area</h2><p className="text-xs text-dark-500">At {activeLocation.name}</p></div></div>{createInScope && createArea.isError && <Alert className="mb-4">{getErrorMessage(createArea.error)}</Alert>}<form className="space-y-4" onSubmit={submitCreate} noValidate><Input id="storage-area-create-name" label="Name" value={form.name} error={errors.name} placeholder="Main cold room" disabled={createPending} onChange={(event) => { setForm((current) => ({ ...current, name: event.target.value })); setErrors((current) => ({ ...current, name: undefined })); createArea.reset(); }} /><Select id="storage-area-create-type" label="Type" value={form.type} error={errors.type} disabled={createPending} onChange={(event) => setForm((current) => ({ ...current, type: event.target.value as StorageAreaType }))}>{STORAGE_AREA_TYPES.map((type) => <option key={type} value={type}>{TYPE_LABELS[type]}</option>)}</Select><Button type="submit" className="flex w-full items-center justify-center gap-2 py-2.5" disabled={createPending}>{createPending ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}{createPending ? 'Creating...' : 'Create storage area'}</Button></form></aside>}
         </div>
       )}
 

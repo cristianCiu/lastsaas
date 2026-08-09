@@ -90,6 +90,13 @@ func (m *MongoDB) ensureIndexes() {
 			},
 		},
 		{
+			"staff_profiles",
+			[]mongo.IndexModel{
+				{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "userId", Value: 1}}, Options: options.Index().SetName("staff_profiles_tenant_user_unique").SetUnique(true)},
+				{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "status", Value: 1}}, Options: options.Index().SetName("staff_profiles_tenant_status")},
+			},
+		},
+		{
 			"users",
 			[]mongo.IndexModel{
 				{Keys: bson.D{{Key: "email", Value: 1}}, Options: options.Index().SetUnique(true).SetSparse(true)},
@@ -114,6 +121,7 @@ func (m *MongoDB) ensureIndexes() {
 			"tenant_memberships",
 			[]mongo.IndexModel{
 				{Keys: bson.D{{Key: "userId", Value: 1}, {Key: "tenantId", Value: 1}}, Options: options.Index().SetUnique(true)},
+				{Keys: bson.D{{Key: "tenantId", Value: 1}}, Options: options.Index().SetName("tenant_memberships_tenant_owner_unique").SetUnique(true).SetPartialFilterExpression(bson.M{"role": "owner"})},
 				{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "role", Value: 1}}},
 				{Keys: bson.D{{Key: "userId", Value: 1}}},
 			},
@@ -343,7 +351,7 @@ func (m *MongoDB) ensureIndexes() {
 		"api_keys": true, "config_vars": true, "stripe_mappings": true,
 		"custom_pages": true, "branding_assets": true, "webauthn_credentials": true,
 		"sso_connections": true, "auth_codes": true,
-		"locations": true, "restaurant_settings": true, "storage_areas": true,
+		"tenant_memberships": true, "locations": true, "restaurant_settings": true, "storage_areas": true, "staff_profiles": true,
 	}
 
 	for _, idx := range indexes {
@@ -525,4 +533,8 @@ func (m *MongoDB) RestaurantSettings() *mongo.Collection {
 
 func (m *MongoDB) StorageAreas() *mongo.Collection {
 	return m.Database.Collection("storage_areas")
+}
+
+func (m *MongoDB) StaffProfiles() *mongo.Collection {
+	return m.Database.Collection("staff_profiles")
 }

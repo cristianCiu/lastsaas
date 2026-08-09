@@ -3,10 +3,11 @@ import { storageAreaKeys } from './queries';
 import { isStorageAreaType, validateStorageArea } from './validation';
 
 describe('storage area query keys', () => {
-  it('isolates lists by tenant and location', () => {
-    expect(storageAreaKeys.list('tenant-a', 'location-a')).toEqual(['storage-areas', 'list', 'tenant-a', 'location-a']);
-    expect(storageAreaKeys.list('tenant-a', 'location-a')).not.toEqual(storageAreaKeys.list('tenant-b', 'location-a'));
-    expect(storageAreaKeys.list('tenant-a', 'location-a')).not.toEqual(storageAreaKeys.list('tenant-a', 'location-b'));
+  it('isolates lists by principal, tenant, and location', () => {
+    expect(storageAreaKeys.list('user-a', 'tenant-a', 'location-a')).toEqual(['storage-areas', 'list', 'user-a', 'tenant-a', 'location-a']);
+    expect(storageAreaKeys.list('user-a', 'tenant-a', 'location-a')).not.toEqual(storageAreaKeys.list('user-b', 'tenant-a', 'location-a'));
+    expect(storageAreaKeys.list('user-a', 'tenant-a', 'location-a')).not.toEqual(storageAreaKeys.list('user-a', 'tenant-b', 'location-a'));
+    expect(storageAreaKeys.list('user-a', 'tenant-a', 'location-a')).not.toEqual(storageAreaKeys.list('user-a', 'tenant-a', 'location-b'));
   });
 });
 

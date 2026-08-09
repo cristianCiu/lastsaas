@@ -48,7 +48,15 @@ func NewLocationRepository(database *db.MongoDB, tenant *models.Tenant) *Locatio
 }
 
 func (r *LocationRepository) List(ctx context.Context) ([]models.Location, error) {
-	cursor, err := r.db.Locations().Find(ctx, bson.M{"tenantId": r.tenant.ID}, options.Find().SetSort(bson.D{{Key: "createdAt", Value: 1}}))
+	return r.ListAssigned(ctx, nil)
+}
+
+func (r *LocationRepository) ListAssigned(ctx context.Context, locationIDs []primitive.ObjectID) ([]models.Location, error) {
+	filter := bson.M{"tenantId": r.tenant.ID}
+	if locationIDs != nil {
+		filter["_id"] = bson.M{"$in": locationIDs}
+	}
+	cursor, err := r.db.Locations().Find(ctx, filter, options.Find().SetSort(bson.D{{Key: "createdAt", Value: 1}}))
 	if err != nil {
 		return nil, fmt.Errorf("list locations: %w", err)
 	}

@@ -41,6 +41,7 @@ type testEnv struct {
 	Config          *config.Config
 	JWTService      *auth.JWTService
 	PasswordService *auth.PasswordService
+	AuthHandler     *AuthHandler
 	Emitter         events.Emitter
 	SysLogger       *syslog.Logger
 	ConfigStore     *configstore.Store
@@ -112,6 +113,7 @@ func setupTestServer(t *testing.T) *testEnv {
 	protectedAuth.HandleFunc("/mfa/setup", authHandler.MFASetup).Methods("POST")
 	protectedAuth.HandleFunc("/mfa/verify-setup", authHandler.MFAVerifySetup).Methods("POST")
 	protectedAuth.HandleFunc("/mfa/disable", authHandler.MFADisable).Methods("POST")
+	protectedAuth.HandleFunc("/delete-account", authHandler.DeleteAccount).Methods("POST")
 
 	// Tenant routes
 	tenantAPI := guarded.PathPrefix("/tenant").Subrouter()
@@ -179,6 +181,7 @@ func setupTestServer(t *testing.T) *testEnv {
 	adminAPI.HandleFunc("/members/invite", adminHandler.InviteRootMember).Methods("POST")
 	adminAPI.HandleFunc("/members/invitations/{invitationId}", adminHandler.CancelRootInvitation).Methods("DELETE")
 	adminAPI.HandleFunc("/members/{userId}", adminHandler.RemoveRootMember).Methods("DELETE")
+	adminAPI.HandleFunc("/users/{userId}/role/{tenantId}", adminHandler.UpdateUserRole).Methods("PATCH")
 
 	// Owner-only admin actions
 	adminOwner := adminAPI.PathPrefix("").Subrouter()
@@ -189,6 +192,7 @@ func setupTestServer(t *testing.T) *testEnv {
 	adminOwner.HandleFunc("/users", adminHandler.ListUsers).Methods("GET")
 	adminOwner.HandleFunc("/users/{userId}", adminHandler.GetUser).Methods("GET")
 	adminOwner.HandleFunc("/users/{userId}/status", adminHandler.UpdateUserStatus).Methods("PATCH")
+	adminOwner.HandleFunc("/users/{userId}", adminHandler.DeleteUser).Methods("DELETE")
 	adminOwner.HandleFunc("/plans", plansHandler.CreatePlan).Methods("POST")
 	adminOwner.HandleFunc("/plans/{planId}", plansHandler.UpdatePlan).Methods("PUT")
 	adminOwner.HandleFunc("/plans/{planId}", plansHandler.DeletePlan).Methods("DELETE")
@@ -204,6 +208,7 @@ func setupTestServer(t *testing.T) *testEnv {
 		Config:          cfg,
 		JWTService:      jwtService,
 		PasswordService: passwordService,
+		AuthHandler:     authHandler,
 		Emitter:         emitter,
 		SysLogger:       sysLogger,
 		ConfigStore:     cfgStore,

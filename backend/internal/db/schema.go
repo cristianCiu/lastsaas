@@ -39,6 +39,41 @@ func AllSchemas() []CollectionSchema {
 		locationsSchema(),
 		restaurantSettingsSchema(),
 		storageAreasSchema(),
+		staffProfilesSchema(),
+	}
+}
+
+func staffProfilesSchema() CollectionSchema {
+	return CollectionSchema{
+		Collection: "staff_profiles", Critical: true, ValidationLevel: "strict",
+		Schema: bson.M{
+			"$jsonSchema": bson.M{
+				"bsonType": "object", "additionalProperties": false,
+				"required": bson.A{"_id", "tenantId", "userId", "businessRole", "allLocations", "locationIds", "permissionOverrides", "status", "version", "createdAt", "updatedAt"},
+				"properties": bson.M{
+					"_id": bson.M{"bsonType": "objectId"}, "tenantId": bson.M{"bsonType": "objectId"}, "userId": bson.M{"bsonType": "objectId"},
+					"businessRole": bson.M{"bsonType": "string", "enum": bson.A{"company_owner", "operations_manager", "head_chef", "purchasing", "stock_service", "controller", "viewer"}},
+					"allLocations": bson.M{"bsonType": "bool"},
+					"locationIds":  bson.M{"bsonType": "array", "uniqueItems": true, "items": bson.M{"bsonType": "objectId"}},
+					"permissionOverrides": bson.M{"bsonType": "array", "items": bson.M{
+						"bsonType": "object", "additionalProperties": false, "required": bson.A{"permission", "allowed"},
+						"properties": bson.M{"permission": bson.M{"bsonType": "string", "enum": bson.A{"storage_areas.read", "storage_areas.manage"}}, "allowed": bson.M{"bsonType": "bool"}},
+					}},
+					"status":  bson.M{"bsonType": "string", "enum": bson.A{"active", "inactive"}},
+					"version": bson.M{"bsonType": "long", "minimum": 1}, "createdAt": bson.M{"bsonType": "date"}, "updatedAt": bson.M{"bsonType": "date"},
+				},
+			},
+			"$expr": bson.M{"$and": bson.A{
+				bson.M{"$or": bson.A{
+					bson.M{"$eq": bson.A{"$allLocations", false}},
+					bson.M{"$eq": bson.A{bson.M{"$size": "$locationIds"}, 0}},
+				}},
+				bson.M{"$eq": bson.A{
+					bson.M{"$size": "$permissionOverrides"},
+					bson.M{"$size": bson.M{"$setUnion": bson.A{bson.M{"$map": bson.M{"input": "$permissionOverrides", "as": "override", "in": "$$override.permission"}}, bson.A{}}}},
+				}},
+			}},
+		},
 	}
 }
 

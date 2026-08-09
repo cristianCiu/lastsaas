@@ -250,14 +250,36 @@ func apiReference() []apiSection {
 			},
 		},
 		{
+			Title: "Staff Profiles",
+			Endpoints: []apiEndpoint{
+				{
+					Method: "GET", Path: "/api/product/staff-profile", Summary: "Get current staff profile",
+					Detail: "Returns the caller profile with effective permissions. Inactive profiles are returned with no effective permissions; a missing profile returns not found.", Auth: "jwt+tenant",
+					Response: `{"staffProfile":{"userId":"...","businessRole":"viewer","allLocations":false,"locationIds":[],"permissionOverrides":[],"status":"active","version":1,"effectivePermissions":[]}}`,
+				},
+				{
+					Method: "GET", Path: "/api/product/staff-profiles", Summary: "List staff profiles",
+					Detail: "Lists tenant-isolated profiles with effective permissions. Requires a core owner or admin.", Auth: "admin",
+					Response: `{"staffProfiles":[]}`,
+				},
+				{
+					Method: "PUT", Path: "/api/product/staff-profiles/{userId}", Summary: "Replace a staff profile",
+					Detail: "Strict complete replacement with optimistic concurrency. Owners manage non-owner targets; admins manage only core users. The owner profile is protected.", Auth: "admin",
+					Params:   []apiParam{{"userId", "ObjectID", true, "The target member user ID"}},
+					Body:     `{"version":1,"businessRole":"head_chef","allLocations":false,"locationIds":["..."],"permissionOverrides":[{"permission":"storage_areas.read","allowed":true}],"status":"active"}`,
+					Response: `{"staffProfile":{"userId":"...","businessRole":"head_chef","allLocations":false,"locationIds":["..."],"permissionOverrides":[{"permission":"storage_areas.read","allowed":true}],"status":"active","version":2,"effectivePermissions":["storage_areas.read"]}}`,
+				},
+			},
+		},
+		{
 			Title: "Product Locations",
 			Endpoints: []apiEndpoint{
 				{
 					Method:   "GET",
 					Path:     "/api/product/locations",
 					Summary:  "List tenant locations",
-					Detail:   "Returns locations belonging to the current tenant. Requires active billing; root and billing-waived tenants are exempt.",
-					Auth:     "jwt+tenant",
+					Detail:   "Returns only locations assigned by the caller's active staff profile. Requires active billing; root and billing-waived tenants are exempt.",
+					Auth:     "jwt+tenant+staff",
 					Response: `{"locations":[{"id":"...","code":"berlin","name":"Berlin","timezone":"Europe/Berlin","isActive":true,"version":1,"createdAt":"...","updatedAt":"..."}]}`,
 				},
 				{
@@ -302,17 +324,17 @@ func apiReference() []apiSection {
 			Endpoints: []apiEndpoint{
 				{
 					Method: "GET", Path: "/api/product/locations/{locationId}/storage-areas", Summary: "List location storage areas",
-					Detail: "Lists storage areas scoped to the current tenant and path location. Requires owner or admin role.", Auth: "admin", Params: []apiParam{{"locationId", "ObjectID", true, "The tenant location ID"}},
+					Detail: "Lists storage areas scoped to an assigned tenant location. Requires storage_areas.read; explicit deny overrides role defaults.", Auth: "staff permission", Params: []apiParam{{"locationId", "ObjectID", true, "The tenant location ID"}},
 					Response: `{"storageAreas":[{"id":"...","locationId":"...","name":"Walk-in","type":"refrigerated","isActive":true,"version":1,"createdAt":"...","updatedAt":"..."}]}`,
 				},
 				{
 					Method: "POST", Path: "/api/product/locations/{locationId}/storage-areas", Summary: "Create a storage area",
-					Detail: "Creates an active storage area. Name is trimmed and unique within the tenant location. Type is refrigerated, frozen, bar, dry, or other. Scope IDs in the body are rejected.", Auth: "admin", Params: []apiParam{{"locationId", "ObjectID", true, "The tenant location ID"}},
+					Detail: "Creates an active storage area at an assigned location. Name is trimmed and unique within the tenant location. Requires storage_areas.manage.", Auth: "staff permission", Params: []apiParam{{"locationId", "ObjectID", true, "The tenant location ID"}},
 					Body: `{"name":"Walk-in","type":"refrigerated"}`, Response: `{"storageArea":{"id":"...","locationId":"...","name":"Walk-in","type":"refrigerated","isActive":true,"version":1,"createdAt":"...","updatedAt":"..."}}`,
 				},
 				{
 					Method: "PATCH", Path: "/api/product/locations/{locationId}/storage-areas/{storageAreaId}", Summary: "Update or deactivate a storage area",
-					Detail: "Requires version and at least one mutable field. Stale versions return VERSION_CONFLICT; a storage area outside the current tenant or location returns NOT_FOUND.", Auth: "admin", Params: []apiParam{{"locationId", "ObjectID", true, "The tenant location ID"}, {"storageAreaId", "ObjectID", true, "The storage area ID"}},
+					Detail: "Requires storage_areas.manage, version, and at least one mutable field. Stale versions return VERSION_CONFLICT; resources outside the authorized tenant location return NOT_FOUND.", Auth: "staff permission", Params: []apiParam{{"locationId", "ObjectID", true, "The tenant location ID"}, {"storageAreaId", "ObjectID", true, "The storage area ID"}},
 					Body: `{"version":1,"name":"Cold room","type":"frozen","isActive":false}`, Response: `{"storageArea":{"id":"...","locationId":"...","name":"Cold room","type":"frozen","isActive":false,"version":2,"createdAt":"...","updatedAt":"..."}}`,
 				},
 			},

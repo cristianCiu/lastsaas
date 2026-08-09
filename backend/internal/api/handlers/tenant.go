@@ -14,11 +14,13 @@ import (
 	"lastsaas/internal/events"
 	"lastsaas/internal/middleware"
 	"lastsaas/internal/models"
+	"lastsaas/internal/product"
 	stripeservice "lastsaas/internal/stripe"
 	"lastsaas/internal/syslog"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
 	"github.com/gorilla/mux"
@@ -333,7 +335,29 @@ func (h *TenantHandler) RemoveMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := h.db.TenantMemberships().DeleteOne(r.Context(), bson.M{"_id": targetMembership.ID}); err != nil {
+	session, err := h.db.Client.StartSession()
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to remove member")
+		return
+	}
+	defer session.EndSession(r.Context())
+	if _, err := session.WithTransaction(r.Context(), func(sc mongo.SessionContext) (interface{}, error) {
+		result, err := h.db.TenantMemberships().DeleteOne(sc, bson.M{"_id": targetMembership.ID, "tenantId": tenant.ID, "userId": targetUserID, "role": targetMembership.Role})
+		if err != nil {
+			return nil, err
+		}
+		if result.DeletedCount != 1 {
+			return nil, product.ErrOwnershipStateChanged
+		}
+		profileResult, err := h.db.StaffProfiles().DeleteOne(sc, bson.M{"tenantId": tenant.ID, "userId": targetUserID})
+		if err != nil {
+			return nil, err
+		}
+		if profileResult.DeletedCount != 1 {
+			return nil, product.ErrStaffProfileNotFound
+		}
+		return nil, nil
+	}); err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to remove member")
 		return
 	}
@@ -470,34 +494,23 @@ func (h *TenantHandler) TransferOwnership(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Verify target is a member
-	count, _ := h.db.TenantMemberships().CountDocuments(r.Context(), bson.M{
-		"userId":   targetUserID,
-		"tenantId": tenant.ID,
-	})
-	if count == 0 {
+	if err := h.db.TenantMemberships().FindOne(r.Context(), bson.M{"userId": targetUserID, "tenantId": tenant.ID}, options.FindOne().SetProjection(bson.M{"_id": 1})).Err(); err != nil {
 		respondWithError(w, http.StatusNotFound, "Target user is not a member of this tenant")
 		return
 	}
 
 	now := time.Now()
 
-	// Set target as owner
-	if _, err := h.db.TenantMemberships().UpdateOne(r.Context(),
-		bson.M{"userId": targetUserID, "tenantId": tenant.ID},
-		bson.M{"$set": bson.M{"role": models.RoleOwner, "updatedAt": now}},
-	); err != nil {
-		slog.Error("TransferOwnership: failed to promote new owner", "error", err)
+	session, err := h.db.Client.StartSession()
+	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to transfer ownership")
 		return
 	}
-
-	// Demote current owner to admin
-	if _, err := h.db.TenantMemberships().UpdateOne(r.Context(),
-		bson.M{"userId": currentMembership.UserID, "tenantId": tenant.ID},
-		bson.M{"$set": bson.M{"role": models.RoleAdmin, "updatedAt": now}},
-	); err != nil {
-		slog.Error("TransferOwnership: failed to demote old owner", "error", err)
+	defer session.EndSession(r.Context())
+	if _, err := session.WithTransaction(r.Context(), func(sc mongo.SessionContext) (interface{}, error) {
+		return nil, product.TransferTenantOwnership(sc, h.db, tenant.ID, currentMembership.UserID, targetUserID)
+	}); err != nil {
+		slog.Error("TransferOwnership: transaction failed", "error", err)
 		respondWithError(w, http.StatusInternalServerError, "Failed to transfer ownership")
 		return
 	}
@@ -506,9 +519,9 @@ func (h *TenantHandler) TransferOwnership(w http.ResponseWriter, r *http.Request
 		Type:      events.EventOwnershipTransferred,
 		Timestamp: now,
 		Data: map[string]interface{}{
-			"tenantId":    tenant.ID.Hex(),
-			"fromUserId":  currentMembership.UserID.Hex(),
-			"toUserId":    targetUserID.Hex(),
+			"tenantId":   tenant.ID.Hex(),
+			"fromUserId": currentMembership.UserID.Hex(),
+			"toUserId":   targetUserID.Hex(),
 		},
 	})
 

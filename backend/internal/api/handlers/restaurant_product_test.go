@@ -102,6 +102,9 @@ func TestStorageAreasScopeValidationLifecycleAndAudit(t *testing.T) {
 	location := createLocation(t, env, owner, tenant.ID, validLocationBody)
 	member := testutil.CreateTestUser(t, env.DB, "storage-member@test.com", "Test1234!@#$", "Member")
 	testutil.CreateTestMembership(t, env.DB, member.ID, tenant.ID, models.RoleUser)
+	if _, err := env.DB.StaffProfiles().UpdateOne(context.Background(), bson.M{"tenantId": tenant.ID, "userId": member.ID}, bson.M{"$set": bson.M{"locationIds": bson.A{location.ID}}}); err != nil {
+		t.Fatal(err)
+	}
 	admin := testutil.CreateTestUser(t, env.DB, "storage-admin@test.com", "Test1234!@#$", "Admin")
 	testutil.CreateTestMembership(t, env.DB, admin.ID, tenant.ID, models.RoleAdmin)
 	path := "/api/product/locations/" + location.ID.Hex() + "/storage-areas"

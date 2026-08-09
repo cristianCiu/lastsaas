@@ -118,6 +118,13 @@ func main() {
 	// Load and check version
 	version.Load()
 	version.CheckAndMigrate(database)
+	reconcileCtx, reconcileCancel := context.WithTimeout(context.Background(), 60*time.Second)
+	if err := product.ReconcileStaffProfiles(reconcileCtx, database); err != nil {
+		reconcileCancel()
+		slog.Error("Failed to reconcile staff profiles", "error", err)
+		os.Exit(1)
+	}
+	reconcileCancel()
 
 	// Seed and load configuration store
 	if err := configstore.Seed(context.Background(), database); err != nil {

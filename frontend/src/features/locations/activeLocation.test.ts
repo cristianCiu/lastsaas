@@ -14,9 +14,10 @@ const location = (id: string, isActive = true): Location => ({
 });
 
 describe('active location persistence', () => {
-  it('uses a separate storage key per tenant', () => {
-    expect(activeLocationStorageKey('tenant-a')).toBe('lastsaas_active_location:tenant-a');
-    expect(activeLocationStorageKey('tenant-a')).not.toBe(activeLocationStorageKey('tenant-b'));
+  it('uses a separate storage key per principal and tenant', () => {
+    expect(activeLocationStorageKey('user-a', 'tenant-a')).toBe('lastsaas_active_location:user-a:tenant-a');
+    expect(activeLocationStorageKey('user-a', 'tenant-a')).not.toBe(activeLocationStorageKey('user-b', 'tenant-a'));
+    expect(activeLocationStorageKey('user-a', 'tenant-a')).not.toBe(activeLocationStorageKey('user-a', 'tenant-b'));
   });
 
   it('restores an active saved selection', () => {

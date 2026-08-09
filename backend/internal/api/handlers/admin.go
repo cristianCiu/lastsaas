@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/csv"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -18,11 +19,13 @@ import (
 	"lastsaas/internal/health"
 	"lastsaas/internal/middleware"
 	"lastsaas/internal/models"
+	"lastsaas/internal/product"
 	"lastsaas/internal/syslog"
 	"lastsaas/internal/version"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
 	"github.com/gorilla/mux"
@@ -80,7 +83,6 @@ func (h *AdminHandler) SetEmailService(svc *email.ResendService) {
 	h.emailService = svc
 }
 
-
 type TenantListItem struct {
 	ID                  string    `json:"id"`
 	Name                string    `json:"name"`
@@ -97,13 +99,13 @@ type TenantListItem struct {
 }
 
 type UserListItem struct {
-	ID            string    `json:"id"`
-	Email         string    `json:"email"`
-	DisplayName   string    `json:"displayName"`
-	EmailVerified bool      `json:"emailVerified"`
-	IsActive      bool      `json:"isActive"`
-	TenantCount   int       `json:"tenantCount"`
-	CreatedAt     time.Time `json:"createdAt"`
+	ID            string     `json:"id"`
+	Email         string     `json:"email"`
+	DisplayName   string     `json:"displayName"`
+	EmailVerified bool       `json:"emailVerified"`
+	IsActive      bool       `json:"isActive"`
+	TenantCount   int        `json:"tenantCount"`
+	CreatedAt     time.Time  `json:"createdAt"`
 	LastLoginAt   *time.Time `json:"lastLoginAt,omitempty"`
 }
 
@@ -209,7 +211,7 @@ func (h *AdminHandler) ListTenants(w http.ResponseWriter, r *http.Request) {
 			defer aggCursor.Close(ctx)
 			var results []struct {
 				ID    primitive.ObjectID `bson:"_id"`
-				Count int               `bson:"count"`
+				Count int                `bson:"count"`
 			}
 			aggCursor.All(ctx, &results)
 			for _, r := range results {
@@ -329,7 +331,7 @@ func (h *AdminHandler) ExportTenantsCSV(w http.ResponseWriter, r *http.Request) 
 			defer aggCursor.Close(ctx)
 			var results []struct {
 				ID    primitive.ObjectID `bson:"_id"`
-				Count int               `bson:"count"`
+				Count int                `bson:"count"`
 			}
 			aggCursor.All(ctx, &results)
 			for _, r := range results {
@@ -599,7 +601,7 @@ func (h *AdminHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 			defer aggCursor.Close(ctx)
 			var results []struct {
 				ID    primitive.ObjectID `bson:"_id"`
-				Count int               `bson:"count"`
+				Count int                `bson:"count"`
 			}
 			aggCursor.All(ctx, &results)
 			for _, r := range results {
@@ -685,7 +687,7 @@ func (h *AdminHandler) ExportUsersCSV(w http.ResponseWriter, r *http.Request) {
 			defer aggCursor.Close(ctx)
 			var results []struct {
 				ID    primitive.ObjectID `bson:"_id"`
-				Count int               `bson:"count"`
+				Count int                `bson:"count"`
 			}
 			aggCursor.All(ctx, &results)
 			for _, r := range results {
@@ -1092,23 +1094,52 @@ func (h *AdminHandler) UpdateUserRole(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 	now := time.Now()
+	var targetMembership models.TenantMembership
+	if err := h.db.TenantMemberships().FindOne(ctx, bson.M{"userId": userID, "tenantId": tenantID}).Decode(&targetMembership); err != nil {
+		respondWithError(w, http.StatusNotFound, "Membership not found")
+		return
+	}
 
-	// If promoting to owner, demote current owner to admin
 	if req.Role == models.RoleOwner {
+		if targetMembership.Role == models.RoleOwner {
+			respondWithJSON(w, http.StatusOK, map[string]string{"message": "Role updated"})
+			return
+		}
 		var currentOwner models.TenantMembership
 		if err := h.db.TenantMemberships().FindOne(ctx, bson.M{
 			"tenantId": tenantID,
 			"role":     models.RoleOwner,
-		}).Decode(&currentOwner); err == nil {
-			h.db.TenantMemberships().UpdateOne(ctx,
-				bson.M{"_id": currentOwner.ID},
-				bson.M{"$set": bson.M{"role": models.RoleAdmin, "updatedAt": now}},
-			)
+		}).Decode(&currentOwner); err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Current owner not found")
+			return
 		}
+		session, err := h.db.Client.StartSession()
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Failed to change ownership")
+			return
+		}
+		defer session.EndSession(ctx)
+		_, err = session.WithTransaction(ctx, func(sc mongo.SessionContext) (interface{}, error) {
+			return nil, product.TransferTenantOwnership(sc, h.db, tenantID, currentOwner.UserID, userID)
+		})
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Failed to change ownership")
+			return
+		}
+		actingUser, _ := middleware.GetUserFromContext(ctx)
+		h.syslog.HighWithUser(ctx,
+			fmt.Sprintf("User role changed: user %s in tenant %s (%s) -> %s (admin action)", userID.Hex(), tenant.Name, tenantID.Hex(), req.Role),
+			actingUser.ID)
+		respondWithJSON(w, http.StatusOK, map[string]string{"message": "Role updated"})
+		return
+	}
+	if targetMembership.Role == models.RoleOwner {
+		respondWithError(w, http.StatusBadRequest, "Cannot demote tenant owner. Use ownership transfer workflow.")
+		return
 	}
 
 	result, err := h.db.TenantMemberships().UpdateOne(ctx,
-		bson.M{"userId": userID, "tenantId": tenantID},
+		bson.M{"_id": targetMembership.ID, "userId": userID, "tenantId": tenantID, "role": targetMembership.Role},
 		bson.M{"$set": bson.M{"role": req.Role, "updatedAt": now}},
 	)
 	if err != nil || result.MatchedCount == 0 {
@@ -1313,22 +1344,39 @@ func (h *AdminHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 				respondWithError(w, http.StatusBadRequest, "Invalid replacement owner ID")
 				return
 			}
-			result, _ := h.db.TenantMemberships().UpdateOne(ctx,
-				bson.M{"userId": replacementID, "tenantId": m.TenantID},
-				bson.M{"$set": bson.M{"role": models.RoleOwner, "updatedAt": time.Now()}},
-			)
-			if result.MatchedCount == 0 {
+			if replacementID == userID {
+				respondWithError(w, http.StatusBadRequest, "Replacement owner must be a different member")
+				return
+			}
+			session, err := h.db.Client.StartSession()
+			if err != nil {
+				respondWithError(w, http.StatusInternalServerError, "Failed to transfer replacement ownership")
+				return
+			}
+			_, err = session.WithTransaction(ctx, func(sc mongo.SessionContext) (interface{}, error) {
+				return nil, product.TransferTenantOwnership(sc, h.db, m.TenantID, userID, replacementID)
+			})
+			session.EndSession(ctx)
+			if errors.Is(err, product.ErrOwnershipStateChanged) {
 				respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Replacement owner is not a member of tenant '%s'", tenant.Name))
+				return
+			}
+			if err != nil {
+				respondWithError(w, http.StatusInternalServerError, "Failed to transfer replacement ownership")
 				return
 			}
 			h.syslog.HighWithUser(ctx,
 				fmt.Sprintf("Tenant '%s' ownership transferred to %s (prior owner %s being deleted)", tenant.Name, replacementStr, user.Email),
 				actingUser.ID)
 		} else {
-			otherCount, _ := h.db.TenantMemberships().CountDocuments(ctx, bson.M{
+			otherCount, err := h.db.TenantMemberships().CountDocuments(ctx, bson.M{
 				"tenantId": m.TenantID,
 				"userId":   bson.M{"$ne": userID},
 			})
+			if err != nil {
+				respondWithError(w, http.StatusInternalServerError, "Failed to check tenant members")
+				return
+			}
 			if otherCount > 0 {
 				respondWithError(w, http.StatusBadRequest, fmt.Sprintf("User is owner of tenant '%s' which has other members. Provide a replacement owner.", tenant.Name))
 				return
@@ -1345,9 +1393,37 @@ func (h *AdminHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 				respondWithError(w, http.StatusBadRequest, fmt.Sprintf("User is the sole member of tenant '%s'. Confirm tenant deletion.", tenant.Name))
 				return
 			}
-			h.db.TenantMemberships().DeleteMany(ctx, bson.M{"tenantId": m.TenantID})
-			h.db.Tenants().DeleteOne(ctx, bson.M{"_id": m.TenantID})
-			h.db.Invitations().DeleteMany(ctx, bson.M{"tenantId": m.TenantID})
+			session, err := h.db.Client.StartSession()
+			if err != nil {
+				respondWithError(w, http.StatusInternalServerError, "Failed to delete tenant")
+				return
+			}
+			_, err = session.WithTransaction(ctx, func(sc mongo.SessionContext) (interface{}, error) {
+				count, err := h.db.TenantMemberships().CountDocuments(sc, bson.M{"tenantId": m.TenantID, "userId": bson.M{"$ne": userID}})
+				if err != nil || count != 0 {
+					return nil, fmt.Errorf("tenant membership state changed")
+				}
+				ownerResult, err := h.db.TenantMemberships().DeleteOne(sc, bson.M{"_id": m.ID, "tenantId": m.TenantID, "userId": userID, "role": models.RoleOwner})
+				if err != nil || ownerResult.DeletedCount != 1 {
+					return nil, fmt.Errorf("tenant ownership state changed")
+				}
+				if _, err := h.db.StaffProfiles().DeleteMany(sc, bson.M{"tenantId": m.TenantID}); err != nil {
+					return nil, err
+				}
+				if _, err := h.db.Invitations().DeleteMany(sc, bson.M{"tenantId": m.TenantID}); err != nil {
+					return nil, err
+				}
+				result, err := h.db.Tenants().DeleteOne(sc, bson.M{"_id": m.TenantID})
+				if err != nil || result.DeletedCount != 1 {
+					return nil, fmt.Errorf("tenant state changed")
+				}
+				return nil, nil
+			})
+			session.EndSession(ctx)
+			if err != nil {
+				respondWithError(w, http.StatusInternalServerError, "Failed to delete tenant")
+				return
+			}
 			h.syslog.HighWithUser(ctx,
 				fmt.Sprintf("Tenant '%s' deleted (sole member %s was deleted)", tenant.Name, user.Email),
 				actingUser.ID)
@@ -1363,11 +1439,35 @@ func (h *AdminHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Delete user's data
-	h.db.TenantMemberships().DeleteMany(ctx, bson.M{"userId": userID})
-	h.db.RefreshTokens().DeleteMany(ctx, bson.M{"userId": userID})
-	h.db.Messages().DeleteMany(ctx, bson.M{"userId": userID})
-	h.db.Users().DeleteOne(ctx, bson.M{"_id": userID})
+	session, err := h.db.Client.StartSession()
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to delete user")
+		return
+	}
+	_, err = session.WithTransaction(ctx, func(sc mongo.SessionContext) (interface{}, error) {
+		if _, err := h.db.TenantMemberships().DeleteMany(sc, bson.M{"userId": userID}); err != nil {
+			return nil, err
+		}
+		if _, err := h.db.StaffProfiles().DeleteMany(sc, bson.M{"userId": userID}); err != nil {
+			return nil, err
+		}
+		if _, err := h.db.RefreshTokens().DeleteMany(sc, bson.M{"userId": userID}); err != nil {
+			return nil, err
+		}
+		if _, err := h.db.Messages().DeleteMany(sc, bson.M{"userId": userID}); err != nil {
+			return nil, err
+		}
+		result, err := h.db.Users().DeleteOne(sc, bson.M{"_id": userID})
+		if err != nil || result.DeletedCount != 1 {
+			return nil, fmt.Errorf("user state changed during deletion")
+		}
+		return nil, nil
+	})
+	session.EndSession(ctx)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to delete user")
+		return
+	}
 
 	h.syslog.HighWithUser(ctx,
 		fmt.Sprintf("User deleted: %s (%s) (admin action)", user.Email, userID.Hex()),

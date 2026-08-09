@@ -535,6 +535,60 @@ func TestIntegration_AdminChangeRootMemberRole(t *testing.T) {
 	}
 }
 
+func TestIntegration_PlatformAdminCannotDemoteTenantOwnerWithRoleUpdate(t *testing.T) {
+	env := setupTestServer(t)
+	defer env.Cleanup()
+	platformOwner, rootTenant := createAdminEnv(t, env)
+	tenantOwner := testutil.CreateTestUser(t, env.DB, "protected-tenant-owner@test.com", "StrongP@ss1!", "Tenant Owner")
+	tenant := testutil.CreateTestTenant(t, env.DB, "Protected Owner Tenant", tenantOwner.ID, false)
+
+	req := env.adminRequest(t, http.MethodPatch, "/api/admin/users/"+tenantOwner.ID.Hex()+"/role/"+tenant.ID.Hex(), strings.NewReader(`{"role":"admin"}`), platformOwner, rootTenant.ID.Hex())
+	resp, err := env.Client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", resp.StatusCode, testutil.ReadResponseBody(t, resp))
+	}
+	var membership models.TenantMembership
+	if err := env.DB.TenantMemberships().FindOne(context.Background(), bson.M{"tenantId": tenant.ID, "userId": tenantOwner.ID}).Decode(&membership); err != nil {
+		t.Fatal(err)
+	}
+	if membership.Role != models.RoleOwner {
+		t.Fatalf("tenant owner was demoted to %s", membership.Role)
+	}
+}
+
+func TestIntegration_PlatformAdminDeleteUserCleansMembershipAndProfile(t *testing.T) {
+	env := setupTestServer(t)
+	defer env.Cleanup()
+	platformOwner, rootTenant := createAdminEnv(t, env)
+	tenantOwner := testutil.CreateTestUser(t, env.DB, "deletion-tenant-owner@test.com", "StrongP@ss1!", "Tenant Owner")
+	tenant := testutil.CreateTestTenant(t, env.DB, "Deletion Tenant", tenantOwner.ID, false)
+	target := testutil.CreateTestUser(t, env.DB, "platform-delete-target@test.com", "StrongP@ss1!", "Delete Target")
+	testutil.CreateTestMembership(t, env.DB, target.ID, tenant.ID, models.RoleUser)
+
+	req := env.adminRequest(t, http.MethodDelete, "/api/admin/users/"+target.ID.Hex(), strings.NewReader(`{}`), platformOwner, rootTenant.ID.Hex())
+	resp, err := env.Client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", resp.StatusCode, testutil.ReadResponseBody(t, resp))
+	}
+	if count, _ := env.DB.Users().CountDocuments(context.Background(), bson.M{"_id": target.ID}); count != 0 {
+		t.Fatal("deleted user remains")
+	}
+	if count, _ := env.DB.TenantMemberships().CountDocuments(context.Background(), bson.M{"userId": target.ID}); count != 0 {
+		t.Fatal("deleted user membership remains")
+	}
+	if count, _ := env.DB.StaffProfiles().CountDocuments(context.Background(), bson.M{"userId": target.ID}); count != 0 {
+		t.Fatal("deleted user staff profile remains")
+	}
+}
+
 func TestIntegration_AdminCancelRootInvitation(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")

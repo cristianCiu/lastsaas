@@ -1,12 +1,19 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
+	"lastsaas/internal/models"
 	"lastsaas/internal/testutil"
+
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 func TestIntegration_RegisterSuccess(t *testing.T) {
@@ -28,6 +35,86 @@ func TestIntegration_RegisterSuccess(t *testing.T) {
 	if resp.StatusCode != http.StatusCreated {
 		t.Errorf("expected 201, got %d: %s", resp.StatusCode, testutil.ReadResponseBody(t, resp))
 	}
+	var user models.User
+	if err := env.DB.Users().FindOne(context.Background(), bson.M{"email": "newuser@test.com"}).Decode(&user); err != nil {
+		t.Fatalf("load registered user: %v", err)
+	}
+	var membership models.TenantMembership
+	if err := env.DB.TenantMemberships().FindOne(context.Background(), bson.M{"userId": user.ID, "role": models.RoleOwner}).Decode(&membership); err != nil {
+		t.Fatalf("load personal tenant membership: %v", err)
+	}
+	var profile models.StaffProfile
+	if err := env.DB.StaffProfiles().FindOne(context.Background(), bson.M{"tenantId": membership.TenantID, "userId": user.ID}).Decode(&profile); err != nil {
+		t.Fatalf("load personal tenant staff profile: %v", err)
+	}
+	if profile.BusinessRole != models.BusinessRoleCompanyOwner || !profile.AllLocations || profile.Status != models.StaffProfileActive {
+		t.Fatalf("unexpected personal tenant staff profile: %#v", profile)
+	}
+}
+
+func TestIntegration_AcceptInvitationCreatesDefaultStaffProfile(t *testing.T) {
+	env := setupTestServer(t)
+	defer env.Cleanup()
+	testutil.MarkSystemInitialized(t, env.DB)
+	owner := testutil.CreateTestUser(t, env.DB, "inviting-owner@test.com", "Test1234!@#$", "Owner")
+	tenant := testutil.CreateTestTenant(t, env.DB, "Invitation Tenant", owner.ID, false)
+	invitee := testutil.CreateTestUser(t, env.DB, "invitee@test.com", "Test1234!@#$", "Invitee")
+	token := "staff-profile-invitation-token"
+	now := time.Now()
+	invitation := models.Invitation{
+		ID: primitive.NewObjectID(), TenantID: tenant.ID, Email: invitee.Email, Role: models.RoleAdmin,
+		Token: hashToken(token), Status: models.InvitationPending, InvitedBy: owner.ID,
+		ExpiresAt: now.Add(time.Hour), CreatedAt: now,
+	}
+	if _, err := env.DB.Invitations().InsertOne(context.Background(), invitation); err != nil {
+		t.Fatalf("insert invitation: %v", err)
+	}
+	if err := env.AuthHandler.acceptInvitationForUser(context.Background(), invitee.ID, token); err != nil {
+		t.Fatalf("accept invitation: %v", err)
+	}
+	var profile models.StaffProfile
+	if err := env.DB.StaffProfiles().FindOne(context.Background(), bson.M{"tenantId": tenant.ID, "userId": invitee.ID}).Decode(&profile); err != nil {
+		t.Fatalf("load invited staff profile: %v", err)
+	}
+	if profile.BusinessRole != models.BusinessRoleOperationsManager || !profile.AllLocations || profile.Status != models.StaffProfileActive {
+		t.Fatalf("unexpected invited staff profile: %#v", profile)
+	}
+}
+
+func TestIntegration_DeleteAccountCleansPersonalTenantLifecycle(t *testing.T) {
+	env := setupTestServer(t)
+	defer env.Cleanup()
+	testutil.MarkSystemInitialized(t, env.DB)
+	user := testutil.CreateTestUser(t, env.DB, "self-delete@test.com", "StrongP@ss1!", "Self Delete")
+	tenant := testutil.CreateTestTenant(t, env.DB, "Self Delete Tenant", user.ID, false)
+	req := env.authenticatedRequest(t, http.MethodPost, "/api/auth/delete-account", strings.NewReader(`{"password":"StrongP@ss1!"}`), user)
+	resp, err := env.Client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", resp.StatusCode, testutil.ReadResponseBody(t, resp))
+	}
+	for name, count := range map[string]int64{
+		"user":       countDocuments(t, env.DB.Users(), bson.M{"_id": user.ID}),
+		"tenant":     countDocuments(t, env.DB.Tenants(), bson.M{"_id": tenant.ID}),
+		"membership": countDocuments(t, env.DB.TenantMemberships(), bson.M{"userId": user.ID}),
+		"profile":    countDocuments(t, env.DB.StaffProfiles(), bson.M{"userId": user.ID}),
+	} {
+		if count != 0 {
+			t.Fatalf("%s remains after account deletion", name)
+		}
+	}
+}
+
+func countDocuments(t *testing.T, collection *mongo.Collection, filter bson.M) int64 {
+	t.Helper()
+	count, err := collection.CountDocuments(context.Background(), filter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return count
 }
 
 func TestIntegration_RegisterResponseContainsTokens(t *testing.T) {

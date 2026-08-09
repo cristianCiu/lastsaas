@@ -31,18 +31,28 @@ func RegisterRoutes(guarded *mux.Router, database *db.MongoDB, auth *middleware.
 	productAPI.Use(auth.RequireAuth)
 	productAPI.Use(tenant.RequireTenant)
 	productAPI.Use(middleware.RequireActiveBilling())
-	productAPI.HandleFunc("/locations", handler.list).Methods(http.MethodGet)
 	productAPI.HandleFunc("/restaurant-settings", handler.getRestaurantSettings).Methods(http.MethodGet)
+	productAPI.Handle("/locations", withProductMiddleware(http.HandlerFunc(handler.create), middleware.RequireRole(models.RoleAdmin))).Methods(http.MethodPost)
+	productAPI.Handle("/locations/{locationId}", withProductMiddleware(http.HandlerFunc(handler.update), middleware.RequireRole(models.RoleAdmin))).Methods(http.MethodPatch)
+	productAPI.Handle("/restaurant-settings", withProductMiddleware(http.HandlerFunc(handler.putRestaurantSettings), middleware.RequireRole(models.RoleAdmin))).Methods(http.MethodPut)
 
-	productWrite := productAPI.PathPrefix("").Subrouter()
-	productWrite.Use(middleware.RequireRole(models.RoleAdmin))
-	productWrite.HandleFunc("/locations", handler.create).Methods(http.MethodPost)
-	productWrite.HandleFunc("/locations/{locationId}", handler.update).Methods(http.MethodPatch)
-	productWrite.HandleFunc("/restaurant-settings", handler.putRestaurantSettings).Methods(http.MethodPut)
-	// Storage access stays admin/owner-only until staff-profile authorization can scope it safely.
-	productWrite.HandleFunc("/locations/{locationId}/storage-areas", handler.listStorageAreas).Methods(http.MethodGet)
-	productWrite.HandleFunc("/locations/{locationId}/storage-areas", handler.createStorageArea).Methods(http.MethodPost)
-	productWrite.HandleFunc("/locations/{locationId}/storage-areas/{storageAreaId}", handler.updateStorageArea).Methods(http.MethodPatch)
+	requireProfile := RequireStaffProfile(database)
+	productAPI.HandleFunc("/staff-profile", handler.getStaffProfile).Methods(http.MethodGet)
+	productAPI.Handle("/locations", withProductMiddleware(http.HandlerFunc(handler.list), requireProfile)).Methods(http.MethodGet)
+	productAPI.Handle("/staff-profiles", withProductMiddleware(http.HandlerFunc(handler.listStaffProfiles), requireProfile, requireCoreRole(models.RoleAdmin))).Methods(http.MethodGet)
+	productAPI.Handle("/staff-profiles/{userId}", withProductMiddleware(http.HandlerFunc(handler.replaceStaffProfile), requireProfile, requireCoreRole(models.RoleAdmin))).Methods(http.MethodPut)
+
+	requireLocation := RequireAuthorizedLocation(database, "locationId")
+	productAPI.Handle("/locations/{locationId}/storage-areas", withProductMiddleware(http.HandlerFunc(handler.listStorageAreas), requireProfile, requireLocation, RequireBusinessPermission(models.PermissionStorageAreasRead))).Methods(http.MethodGet)
+	productAPI.Handle("/locations/{locationId}/storage-areas", withProductMiddleware(http.HandlerFunc(handler.createStorageArea), requireProfile, requireLocation, RequireBusinessPermission(models.PermissionStorageAreasManage))).Methods(http.MethodPost)
+	productAPI.Handle("/locations/{locationId}/storage-areas/{storageAreaId}", withProductMiddleware(http.HandlerFunc(handler.updateStorageArea), requireProfile, requireLocation, RequireBusinessPermission(models.PermissionStorageAreasManage))).Methods(http.MethodPatch)
+}
+
+func withProductMiddleware(handler http.Handler, chain ...func(http.Handler) http.Handler) http.Handler {
+	for i := len(chain) - 1; i >= 0; i-- {
+		handler = chain[i](handler)
+	}
+	return handler
 }
 
 func (h *productHandler) update(w http.ResponseWriter, r *http.Request) {
@@ -129,7 +139,17 @@ func (h *productHandler) list(w http.ResponseWriter, r *http.Request) {
 		apierror.BadRequest(w, r, "Tenant context required")
 		return
 	}
-	locations, err := NewLocationRepository(h.db, tenant).List(r.Context())
+	profile, ok := GetStaffProfileFromContext(r.Context())
+	if !ok {
+		apierror.Forbidden(w, r, "Active staff profile required")
+		return
+	}
+	var assigned []primitive.ObjectID
+	if !profile.AllLocations {
+		assigned = make([]primitive.ObjectID, len(profile.LocationIDs))
+		copy(assigned, profile.LocationIDs)
+	}
+	locations, err := NewLocationRepository(h.db, tenant).ListAssigned(r.Context(), assigned)
 	if err != nil {
 		apierror.Internal(w, r, "Failed to list locations")
 		return

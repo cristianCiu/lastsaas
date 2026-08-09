@@ -21,10 +21,10 @@ interface Selection {
 const ActiveLocationContext = createContext<ActiveLocationContextType | null>(null);
 const EMPTY_LOCATIONS: Location[] = [];
 
-export function ActiveLocationProvider({ tenantId, enabled, children }: { tenantId: string; enabled: boolean; children: ReactNode }) {
+export function ActiveLocationProvider({ principalId, tenantId, enabled, children }: { principalId: string; tenantId: string; enabled: boolean; children: ReactNode }) {
   const [selection, setSelection] = useState<Selection | null>(null);
   const locationsQuery = useQuery({
-    queryKey: locationKeys.list(tenantId),
+    queryKey: locationKeys.list(principalId, tenantId),
     queryFn: () => locationsApi.list(),
     enabled: enabled && tenantId.length > 0,
   });
@@ -40,7 +40,7 @@ export function ActiveLocationProvider({ tenantId, enabled, children }: { tenant
     }
     if (!locationsQuery.isSuccess) return;
 
-    const storageKey = activeLocationStorageKey(tenantId);
+    const storageKey = activeLocationStorageKey(principalId, tenantId);
     const resolved = resolveActiveLocation(locations, localStorage.getItem(storageKey));
     if (resolved) {
       setSelection({ tenantId, locationId: resolved.id });
@@ -49,11 +49,11 @@ export function ActiveLocationProvider({ tenantId, enabled, children }: { tenant
       setSelection(null);
       localStorage.removeItem(storageKey);
     }
-  }, [enabled, locations, locationsQuery.isSuccess, tenantId]);
+  }, [enabled, locations, locationsQuery.isSuccess, principalId, tenantId]);
 
   const setActiveLocation = useCallback((location: Location | null) => {
     if (!enabled || !tenantId) return;
-    const storageKey = activeLocationStorageKey(tenantId);
+    const storageKey = activeLocationStorageKey(principalId, tenantId);
     if (!location) {
       setSelection(null);
       localStorage.removeItem(storageKey);
@@ -62,7 +62,7 @@ export function ActiveLocationProvider({ tenantId, enabled, children }: { tenant
     if (!isValidActiveLocation(locations, location)) return;
     setSelection({ tenantId, locationId: location.id });
     localStorage.setItem(storageKey, location.id);
-  }, [enabled, locations, tenantId]);
+  }, [enabled, locations, principalId, tenantId]);
 
   return (
     <ActiveLocationContext.Provider value={{

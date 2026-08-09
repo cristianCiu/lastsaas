@@ -18,12 +18,14 @@ import (
 	"lastsaas/internal/events"
 	"lastsaas/internal/middleware"
 	"lastsaas/internal/models"
+	"lastsaas/internal/product"
 	"lastsaas/internal/syslog"
 	"lastsaas/internal/telemetry"
 	"lastsaas/internal/validation"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
@@ -70,7 +72,7 @@ func NewAuthHandler(
 func (h *AuthHandler) SetGitHubOAuth(svc *auth.GitHubOAuthService)       { h.githubOAuth = svc }
 func (h *AuthHandler) SetMicrosoftOAuth(svc *auth.MicrosoftOAuthService) { h.microsoftOAuth = svc }
 func (h *AuthHandler) SetGetConfig(fn func(string) string)               { h.getConfig = fn }
-func (h *AuthHandler) SetRateLimiter(rl *middleware.RateLimiter)          { h.rateLimiter = rl }
+func (h *AuthHandler) SetRateLimiter(rl *middleware.RateLimiter)         { h.rateLimiter = rl }
 func (h *AuthHandler) SetTelemetry(svc *telemetry.Service)               { h.telemetrySvc = svc }
 func (h *AuthHandler) SetTOTPEncryptionKey(key []byte) {
 	if len(key) == 32 {
@@ -1791,12 +1793,12 @@ func (h *AuthHandler) ListSessions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type sessionInfo struct {
-		ID           string     `json:"id"`
-		DeviceInfo   string     `json:"deviceInfo"`
-		IPAddress    string     `json:"ipAddress"`
-		CreatedAt    time.Time  `json:"createdAt"`
-		LastActiveAt time.Time  `json:"lastActiveAt"`
-		IsCurrent    bool       `json:"isCurrent"`
+		ID           string    `json:"id"`
+		DeviceInfo   string    `json:"deviceInfo"`
+		IPAddress    string    `json:"ipAddress"`
+		CreatedAt    time.Time `json:"createdAt"`
+		LastActiveAt time.Time `json:"lastActiveAt"`
+		IsCurrent    bool      `json:"isCurrent"`
 	}
 
 	_ = currentTokenHash
@@ -1964,11 +1966,6 @@ func (h *AuthHandler) createPersonalTenant(ctx context.Context, userID primitive
 		CreatedAt:     now,
 		UpdatedAt:     now,
 	}
-	if _, err := h.db.Tenants().InsertOne(ctx, tenant); err != nil {
-		slog.Error("Failed to create personal tenant", "userId", userID.Hex(), "error", err)
-		return
-	}
-
 	membership := models.TenantMembership{
 		ID:        primitive.NewObjectID(),
 		UserID:    userID,
@@ -1977,8 +1974,23 @@ func (h *AuthHandler) createPersonalTenant(ctx context.Context, userID primitive
 		JoinedAt:  now,
 		UpdatedAt: now,
 	}
-	if _, err := h.db.TenantMemberships().InsertOne(ctx, membership); err != nil {
-		slog.Error("Failed to create membership for personal tenant", "error", err)
+	session, err := h.db.Client.StartSession()
+	if err != nil {
+		slog.Error("Failed to start personal tenant transaction", "error", err)
+		return
+	}
+	defer session.EndSession(ctx)
+	if _, err := session.WithTransaction(ctx, func(sc mongo.SessionContext) (interface{}, error) {
+		if _, err := h.db.Tenants().InsertOne(sc, tenant); err != nil {
+			return nil, err
+		}
+		if _, err := h.db.TenantMemberships().InsertOne(sc, membership); err != nil {
+			return nil, err
+		}
+		return nil, product.InsertDefaultStaffProfile(sc, h.db, tenant.ID, userID, models.RoleOwner)
+	}); err != nil {
+		slog.Error("Failed to create personal tenant and staff profile", "userId", userID.Hex(), "error", err)
+		return
 	}
 
 	h.events.Emit(events.Event{
@@ -2073,27 +2085,6 @@ func (h *AuthHandler) acceptInvitationForUser(ctx context.Context, userID primit
 		return fmt.Errorf("invitation was sent to a different email address")
 	}
 
-	// Atomically claim the invitation — prevents race conditions with concurrent acceptance
-	res := h.db.Invitations().FindOneAndUpdate(
-		ctx,
-		bson.M{
-			"_id":    invitation.ID,
-			"status": models.InvitationPending,
-		},
-		bson.M{"$set": bson.M{"status": models.InvitationAccepted}},
-	)
-	if res.Err() != nil {
-		return fmt.Errorf("invitation already accepted")
-	}
-
-	count, _ := h.db.TenantMemberships().CountDocuments(ctx, bson.M{
-		"userId":   userID,
-		"tenantId": invitation.TenantID,
-	})
-	if count > 0 {
-		return fmt.Errorf("already a member of this tenant")
-	}
-
 	membership := models.TenantMembership{
 		ID:        primitive.NewObjectID(),
 		UserID:    userID,
@@ -2102,15 +2093,39 @@ func (h *AuthHandler) acceptInvitationForUser(ctx context.Context, userID primit
 		JoinedAt:  now,
 		UpdatedAt: now,
 	}
-	if _, err := h.db.TenantMemberships().InsertOne(ctx, membership); err != nil {
-		return fmt.Errorf("failed to create membership")
+	session, err := h.db.Client.StartSession()
+	if err != nil {
+		return fmt.Errorf("failed to accept invitation")
 	}
-
-	// Auto-verify email: the user proved ownership by receiving the invitation at this address.
-	if !acceptingUser.EmailVerified {
-		h.db.Users().UpdateOne(ctx, bson.M{"_id": userID}, bson.M{
-			"$set": bson.M{"emailVerified": true, "updatedAt": now},
-		})
+	defer session.EndSession(ctx)
+	if _, err := session.WithTransaction(ctx, func(sc mongo.SessionContext) (interface{}, error) {
+		res := h.db.Invitations().FindOneAndUpdate(sc,
+			bson.M{"_id": invitation.ID, "status": models.InvitationPending},
+			bson.M{"$set": bson.M{"status": models.InvitationAccepted}})
+		if res.Err() != nil {
+			return nil, fmt.Errorf("invitation already accepted")
+		}
+		count, err := h.db.TenantMemberships().CountDocuments(sc, bson.M{"userId": userID, "tenantId": invitation.TenantID})
+		if err != nil {
+			return nil, err
+		}
+		if count > 0 {
+			return nil, fmt.Errorf("already a member of this tenant")
+		}
+		if _, err := h.db.TenantMemberships().InsertOne(sc, membership); err != nil {
+			return nil, fmt.Errorf("failed to create membership: %w", err)
+		}
+		if err := product.InsertDefaultStaffProfile(sc, h.db, invitation.TenantID, userID, invitation.Role); err != nil {
+			return nil, fmt.Errorf("failed to create staff profile: %w", err)
+		}
+		if !acceptingUser.EmailVerified {
+			if _, err := h.db.Users().UpdateOne(sc, bson.M{"_id": userID}, bson.M{"$set": bson.M{"emailVerified": true, "updatedAt": now}}); err != nil {
+				return nil, err
+			}
+		}
+		return nil, nil
+	}); err != nil {
+		return err
 	}
 
 	h.events.Emit(events.Event{
@@ -2228,6 +2243,7 @@ func (h *AuthHandler) DeleteAccount(w http.ResponseWriter, r *http.Request) {
 	}
 	cursor.Close(ctx)
 
+	ownedTenants := make([]models.Tenant, 0)
 	for _, m := range memberships {
 		if m.Role != models.RoleOwner {
 			continue
@@ -2235,7 +2251,8 @@ func (h *AuthHandler) DeleteAccount(w http.ResponseWriter, r *http.Request) {
 
 		var tenant models.Tenant
 		if err := h.db.Tenants().FindOne(ctx, bson.M{"_id": m.TenantID}).Decode(&tenant); err != nil {
-			continue
+			respondWithError(w, http.StatusInternalServerError, "Failed to check owned tenant")
+			return
 		}
 
 		if tenant.IsRoot {
@@ -2243,49 +2260,76 @@ func (h *AuthHandler) DeleteAccount(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		otherCount, _ := h.db.TenantMemberships().CountDocuments(ctx, bson.M{
+		otherCount, err := h.db.TenantMemberships().CountDocuments(ctx, bson.M{
 			"tenantId": m.TenantID,
 			"userId":   bson.M{"$ne": user.ID},
 		})
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Failed to check tenant members")
+			return
+		}
 		if otherCount > 0 {
 			respondWithError(w, http.StatusBadRequest, fmt.Sprintf("You are the owner of '%s' which has other members. Transfer ownership before deleting your account.", tenant.Name))
 			return
 		}
+		ownedTenants = append(ownedTenants, tenant)
+	}
 
-		// Sole member — delete the tenant
-		if _, err := h.db.TenantMemberships().DeleteMany(ctx, bson.M{"tenantId": m.TenantID}); err != nil {
-			slog.Warn("Failed to delete tenant memberships during account deletion", "tenantId", m.TenantID.Hex(), "error", err)
+	session, err := h.db.Client.StartSession()
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to delete account")
+		return
+	}
+	defer session.EndSession(ctx)
+	if _, err := session.WithTransaction(ctx, func(sc mongo.SessionContext) (interface{}, error) {
+		for _, tenant := range ownedTenants {
+			count, err := h.db.TenantMemberships().CountDocuments(sc, bson.M{"tenantId": tenant.ID, "userId": bson.M{"$ne": user.ID}})
+			if err != nil || count != 0 {
+				return nil, fmt.Errorf("owned tenant membership state changed")
+			}
+			ownerResult, err := h.db.TenantMemberships().DeleteOne(sc, bson.M{"tenantId": tenant.ID, "userId": user.ID, "role": models.RoleOwner})
+			if err != nil || ownerResult.DeletedCount != 1 {
+				return nil, fmt.Errorf("owned tenant state changed")
+			}
+			if _, err := h.db.StaffProfiles().DeleteMany(sc, bson.M{"tenantId": tenant.ID}); err != nil {
+				return nil, err
+			}
+			if _, err := h.db.Invitations().DeleteMany(sc, bson.M{"tenantId": tenant.ID}); err != nil {
+				return nil, err
+			}
+			tenantResult, err := h.db.Tenants().DeleteOne(sc, bson.M{"_id": tenant.ID})
+			if err != nil || tenantResult.DeletedCount != 1 {
+				return nil, fmt.Errorf("owned tenant state changed")
+			}
 		}
-		if _, err := h.db.Tenants().DeleteOne(ctx, bson.M{"_id": m.TenantID}); err != nil {
-			slog.Warn("Failed to delete tenant during account deletion", "tenantId", m.TenantID.Hex(), "error", err)
+		if _, err := h.db.TenantMemberships().DeleteMany(sc, bson.M{"userId": user.ID}); err != nil {
+			return nil, err
 		}
-		if _, err := h.db.Invitations().DeleteMany(ctx, bson.M{"tenantId": m.TenantID}); err != nil {
-			slog.Warn("Failed to delete tenant invitations during account deletion", "tenantId", m.TenantID.Hex(), "error", err)
+		if _, err := h.db.StaffProfiles().DeleteMany(sc, bson.M{"userId": user.ID}); err != nil {
+			return nil, err
 		}
+		if _, err := h.db.RefreshTokens().DeleteMany(sc, bson.M{"userId": user.ID}); err != nil {
+			return nil, err
+		}
+		if _, err := h.db.Messages().DeleteMany(sc, bson.M{"userId": user.ID}); err != nil {
+			return nil, err
+		}
+		result, err := h.db.Users().DeleteOne(sc, bson.M{"_id": user.ID})
+		if err != nil || result.DeletedCount != 1 {
+			return nil, fmt.Errorf("user state changed during account deletion")
+		}
+		return nil, nil
+	}); err != nil {
+		slog.Error("Failed transactional account deletion", "userId", user.ID.Hex(), "error", err)
+		respondWithError(w, http.StatusInternalServerError, "Failed to delete account")
+		return
+	}
 
+	for _, tenant := range ownedTenants {
 		h.events.Emit(events.Event{
-			Type:      events.EventTenantDeleted,
-			Timestamp: time.Now(),
-			Data: map[string]interface{}{
-				"tenantId":   m.TenantID.Hex(),
-				"tenantName": tenant.Name,
-				"reason":     "owner_self_deleted",
-			},
+			Type: events.EventTenantDeleted, Timestamp: time.Now(),
+			Data: map[string]interface{}{"tenantId": tenant.ID.Hex(), "tenantName": tenant.Name, "reason": "owner_self_deleted"},
 		})
-	}
-
-	// Delete user data
-	if _, err := h.db.TenantMemberships().DeleteMany(ctx, bson.M{"userId": user.ID}); err != nil {
-		slog.Warn("Failed to delete user memberships during account deletion", "userId", user.ID.Hex(), "error", err)
-	}
-	if _, err := h.db.RefreshTokens().DeleteMany(ctx, bson.M{"userId": user.ID}); err != nil {
-		slog.Warn("Failed to delete user refresh tokens during account deletion", "userId", user.ID.Hex(), "error", err)
-	}
-	if _, err := h.db.Messages().DeleteMany(ctx, bson.M{"userId": user.ID}); err != nil {
-		slog.Warn("Failed to delete user messages during account deletion", "userId", user.ID.Hex(), "error", err)
-	}
-	if _, err := h.db.Users().DeleteOne(ctx, bson.M{"_id": user.ID}); err != nil {
-		slog.Warn("Failed to delete user record during account deletion", "userId", user.ID.Hex(), "error", err)
 	}
 
 	h.syslog.High(ctx, fmt.Sprintf("User self-deleted account: %s (%s)", user.Email, user.ID.Hex()))

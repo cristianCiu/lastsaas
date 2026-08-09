@@ -204,6 +204,7 @@ func CleanupCollections(t *testing.T, database *db.MongoDB) {
 		"webauthn_credentials", "webauthn_sessions", "sso_connections",
 		"announcements", "usage_events", "rate_limits",
 		"locations", "restaurant_settings", "storage_areas",
+		"staff_profiles",
 	}
 	for _, name := range collections {
 		database.Database.Collection(name).DeleteMany(ctx, bson.M{})
@@ -286,6 +287,11 @@ func CreateTestTenant(t *testing.T, database *db.MongoDB, name string, ownerID p
 	_, err = database.TenantMemberships().InsertOne(ctx, membership)
 	if err != nil {
 		t.Fatalf("testutil: failed to create test membership: %v", err)
+	}
+	if !isRoot {
+		if err := insertTestDefaultStaffProfile(ctx, database, tenant.ID, ownerID, models.RoleOwner); err != nil {
+			t.Fatalf("testutil: failed to create owner staff profile: %v", err)
+		}
 	}
 
 	return &tenant
@@ -374,7 +380,36 @@ func CreateTestMembership(t *testing.T, database *db.MongoDB, userID, tenantID p
 	if err != nil {
 		t.Fatalf("testutil: failed to create test membership: %v", err)
 	}
+	var tenant models.Tenant
+	if err := database.Tenants().FindOne(ctx, bson.M{"_id": tenantID}).Decode(&tenant); err != nil {
+		t.Fatalf("testutil: failed to load membership tenant: %v", err)
+	}
+	if !tenant.IsRoot {
+		if err := insertTestDefaultStaffProfile(ctx, database, tenantID, userID, role); err != nil {
+			t.Fatalf("testutil: failed to create default staff profile: %v", err)
+		}
+	}
 	return &membership
+}
+
+func insertTestDefaultStaffProfile(ctx context.Context, database *db.MongoDB, tenantID, userID primitive.ObjectID, role models.MemberRole) error {
+	businessRole := models.BusinessRoleViewer
+	allLocations := false
+	if role == models.RoleOwner {
+		businessRole = models.BusinessRoleCompanyOwner
+		allLocations = true
+	} else if role == models.RoleAdmin {
+		businessRole = models.BusinessRoleOperationsManager
+		allLocations = true
+	}
+	now := time.Now()
+	_, err := database.StaffProfiles().InsertOne(ctx, models.StaffProfile{
+		ID: primitive.NewObjectID(), TenantID: tenantID, UserID: userID,
+		BusinessRole: businessRole, AllLocations: allLocations,
+		LocationIDs: []primitive.ObjectID{}, PermissionOverrides: []models.PermissionOverride{},
+		Status: models.StaffProfileActive, Version: 1, CreatedAt: now, UpdatedAt: now,
+	})
+	return err
 }
 
 // CreateTestPlan creates a plan in the test database.

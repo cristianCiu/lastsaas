@@ -3,9 +3,10 @@ import { locationKeys } from './queries';
 import { isValidTimezone, validateLocation } from './validation';
 
 describe('location query keys', () => {
-  it('isolates lists by tenant', () => {
-    expect(locationKeys.list('tenant-a')).toEqual(['locations', 'list', 'tenant-a']);
-    expect(locationKeys.list('tenant-a')).not.toEqual(locationKeys.list('tenant-b'));
+  it('isolates lists by principal and tenant', () => {
+    expect(locationKeys.list('user-a', 'tenant-a')).toEqual(['locations', 'list', 'user-a', 'tenant-a']);
+    expect(locationKeys.list('user-a', 'tenant-a')).not.toEqual(locationKeys.list('user-b', 'tenant-a'));
+    expect(locationKeys.list('user-a', 'tenant-a')).not.toEqual(locationKeys.list('user-a', 'tenant-b'));
   });
 });
 

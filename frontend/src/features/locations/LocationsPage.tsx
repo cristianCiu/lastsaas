@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useLayoutEffect, useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import { AlertCircle, CheckCircle2, Clock3, LockKeyhole, MapPin, Pencil, Plus, Power, RefreshCw, X } from 'lucide-react';
@@ -7,6 +7,7 @@ import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import TableSkeleton from '../../components/TableSkeleton';
 import WorkspaceSettingsNav from '../../components/WorkspaceSettingsNav';
+import { useAuth } from '../../contexts/AuthContext';
 import { useTenant } from '../../contexts/TenantContext';
 import { useActiveLocation } from '../../contexts/ActiveLocationContext';
 import { getErrorMessage } from '../../utils/errors';
@@ -34,12 +35,15 @@ interface EditForm {
 }
 
 export default function LocationsPage() {
+  const { user } = useAuth();
   const { activeTenant, role } = useTenant();
+  const principalId = user?.id ?? '';
   const tenantId = activeTenant?.tenantId ?? '';
   const canCreate = role === 'owner' || role === 'admin';
   const { locations, loading: locationsLoading, error: locationsError } = useActiveLocation();
   const queryClient = useQueryClient();
-  const activeTenantId = useRef(tenantId);
+  const scopeRef = useRef({ principalId, tenantId });
+  const isCurrentScope = (scope: { principalId: string; tenantId: string }) => scopeRef.current.principalId === scope.principalId && scopeRef.current.tenantId === scope.tenantId;
   const [form, setForm] = useState<CreateLocationInput>(EMPTY_FORM);
   const [errors, setErrors] = useState<LocationValidationErrors>({});
   const [success, setSuccess] = useState('');
@@ -47,17 +51,11 @@ export default function LocationsPage() {
   const [editForm, setEditForm] = useState<EditForm>({ name: '', timezone: '' });
   const [editErrors, setEditErrors] = useState<Pick<LocationValidationErrors, 'name' | 'timezone'>>({});
 
-  useEffect(() => {
-    activeTenantId.current = tenantId;
-    setSuccess('');
-    setEditingId(null);
-  }, [tenantId]);
-
   const createLocation = useMutation({
-    mutationFn: ({ input }: { input: CreateLocationInput; tenantId: string }) => locationsApi.create(input),
+    mutationFn: ({ input }: { input: CreateLocationInput; principalId: string; tenantId: string }) => locationsApi.create(input),
     onSuccess: async ({ location }, variables) => {
-      await queryClient.invalidateQueries({ queryKey: locationKeys.list(variables.tenantId), exact: true });
-      if (activeTenantId.current !== variables.tenantId) return;
+      await queryClient.invalidateQueries({ queryKey: locationKeys.list(variables.principalId, variables.tenantId), exact: true });
+      if (!isCurrentScope(variables)) return;
 
       setForm(EMPTY_FORM);
       setErrors({});
@@ -66,28 +64,41 @@ export default function LocationsPage() {
   });
 
   const updateLocation = useMutation({
-    mutationFn: ({ id, input }: { id: string; input: UpdateLocationInput; tenantId: string }) =>
+    mutationFn: ({ id, input }: { id: string; input: UpdateLocationInput; principalId: string; tenantId: string }) =>
       locationsApi.update(id, input),
-    onMutate: () => {
-      setSuccess('');
+    onMutate: (variables) => {
+      if (isCurrentScope(variables)) setSuccess('');
     },
     onSuccess: async ({ location }, variables) => {
-      queryClient.setQueryData<{ locations: Location[] }>(locationKeys.list(variables.tenantId), (current) => current ? {
+      queryClient.setQueryData<{ locations: Location[] }>(locationKeys.list(variables.principalId, variables.tenantId), (current) => current ? {
         locations: current.locations.map((item) => item.id === location.id ? location : item),
       } : current);
-      await queryClient.invalidateQueries({ queryKey: locationKeys.list(variables.tenantId), exact: true });
-      if (activeTenantId.current !== variables.tenantId) return;
+      await queryClient.invalidateQueries({ queryKey: locationKeys.list(variables.principalId, variables.tenantId), exact: true });
+      if (!isCurrentScope(variables)) return;
       setEditingId(null);
       setEditErrors({});
       setSuccess(`${location.name} was updated successfully.`);
     },
     onError: async (_error, variables) => {
       if (isVersionConflict(_error)) {
-        await queryClient.invalidateQueries({ queryKey: locationKeys.list(variables.tenantId), exact: true });
-        if (activeTenantId.current === variables.tenantId) setEditingId(null);
+        await queryClient.invalidateQueries({ queryKey: locationKeys.list(variables.principalId, variables.tenantId), exact: true });
+        if (isCurrentScope(variables)) setEditingId(null);
       }
     },
   });
+
+  const resetCreate = createLocation.reset;
+  const resetUpdate = updateLocation.reset;
+  useLayoutEffect(() => {
+    scopeRef.current = { principalId, tenantId };
+    setForm(EMPTY_FORM);
+    setErrors({});
+    setSuccess('');
+    setEditingId(null);
+    setEditErrors({});
+    resetCreate();
+    resetUpdate();
+  }, [principalId, tenantId, resetCreate, resetUpdate]);
 
   const setField = (field: keyof CreateLocationInput, value: string) => {
     setForm((current) => ({ ...current, [field]: value }));
@@ -106,6 +117,7 @@ export default function LocationsPage() {
     if (Object.keys(validationErrors).length > 0) return;
 
     createLocation.mutate({
+      principalId,
       tenantId,
       input: {
         code: form.code.trim(),
@@ -131,6 +143,7 @@ export default function LocationsPage() {
 
     updateLocation.mutate({
       id: location.id,
+      principalId,
       tenantId,
       input: { version: location.version, name: editForm.name.trim(), timezone: editForm.timezone.trim() },
     });
@@ -140,13 +153,18 @@ export default function LocationsPage() {
     if (location.isActive && !window.confirm(`Deactivate ${location.name}? It will no longer be available for active selection.`)) return;
     updateLocation.mutate({
       id: location.id,
+      principalId,
       tenantId,
       input: { version: location.version, isActive: !location.isActive },
     });
   };
 
   const unauthorized = !!locationsError && isAuthorizationError(locationsError);
-  const updateError = updateLocation.isError
+  const createInScope = createLocation.variables?.principalId === principalId && createLocation.variables.tenantId === tenantId;
+  const updateInScope = updateLocation.variables?.principalId === principalId && updateLocation.variables.tenantId === tenantId;
+  const createPending = createInScope && createLocation.isPending;
+  const updatePending = updateInScope && updateLocation.isPending;
+  const updateError = updateInScope && updateLocation.isError
     ? isVersionConflict(updateLocation.error)
       ? 'This location changed elsewhere. The latest data has been loaded; review it and try again.'
       : getErrorMessage(updateLocation.error)
@@ -207,7 +225,7 @@ export default function LocationsPage() {
               <AlertCircle className="mb-4 h-9 w-9 text-red-400" />
               <h3 className="font-semibold text-white">Could not load locations</h3>
               <p className="mt-2 max-w-md text-sm text-dark-400">{getErrorMessage(locationsError)}</p>
-              <Button className="mt-5 inline-flex items-center gap-2" variant="secondary" onClick={() => queryClient.refetchQueries({ queryKey: locationKeys.list(tenantId), exact: true })}>
+              <Button className="mt-5 inline-flex items-center gap-2" variant="secondary" onClick={() => queryClient.refetchQueries({ queryKey: locationKeys.list(principalId, tenantId), exact: true })}>
                 <RefreshCw className="h-4 w-4" /> Retry
               </Button>
             </div>
@@ -237,7 +255,7 @@ export default function LocationsPage() {
                             updateLocation.reset();
                           }}
                           error={editErrors.name}
-                          disabled={updateLocation.isPending}
+                          disabled={updatePending}
                         />
                         <Input
                           label="IANA timezone"
@@ -249,18 +267,18 @@ export default function LocationsPage() {
                           }}
                           error={editErrors.timezone}
                           list="location-timezones"
-                          disabled={updateLocation.isPending}
+                          disabled={updatePending}
                         />
                       </div>
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <code className="text-xs text-dark-500">{location.code}</code>
                         <div className="flex gap-2">
-                          <Button variant="ghost" size="sm" onClick={() => setEditingId(null)} disabled={updateLocation.isPending} className="inline-flex items-center gap-1.5">
+                          <Button variant="ghost" size="sm" onClick={() => setEditingId(null)} disabled={updatePending} className="inline-flex items-center gap-1.5">
                             <X className="h-3.5 w-3.5" /> Cancel
                           </Button>
-                          <Button size="sm" onClick={() => saveEdit(location)} disabled={updateLocation.isPending} className="inline-flex items-center gap-1.5">
-                            {updateLocation.isPending ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
-                            {updateLocation.isPending ? 'Saving...' : 'Save changes'}
+                          <Button size="sm" onClick={() => saveEdit(location)} disabled={updatePending} className="inline-flex items-center gap-1.5">
+                            {updatePending ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                            {updatePending ? 'Saving...' : 'Save changes'}
                           </Button>
                         </div>
                       </div>
@@ -288,11 +306,11 @@ export default function LocationsPage() {
                       </div>
                       {canCreate && (
                         <div className="flex gap-2">
-                          <Button variant="secondary" size="sm" onClick={() => startEditing(location)} disabled={updateLocation.isPending} className="inline-flex items-center gap-1.5">
+                          <Button variant="secondary" size="sm" onClick={() => startEditing(location)} disabled={updatePending} className="inline-flex items-center gap-1.5">
                             <Pencil className="h-3.5 w-3.5" /> Edit
                           </Button>
-                          <Button variant={location.isActive ? 'danger' : 'secondary'} size="sm" onClick={() => toggleLocation(location)} disabled={updateLocation.isPending} className="inline-flex items-center gap-1.5">
-                            {updateLocation.isPending && updateLocation.variables?.id === location.id ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Power className="h-3.5 w-3.5" />}
+                          <Button variant={location.isActive ? 'danger' : 'secondary'} size="sm" onClick={() => toggleLocation(location)} disabled={updatePending} className="inline-flex items-center gap-1.5">
+                            {updatePending && updateLocation.variables?.id === location.id ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Power className="h-3.5 w-3.5" />}
                             {location.isActive ? 'Deactivate' : 'Reactivate'}
                           </Button>
                         </div>
@@ -316,7 +334,7 @@ export default function LocationsPage() {
               </div>
             </div>
 
-            {createLocation.isError && <Alert className="mb-4">{getErrorMessage(createLocation.error)}</Alert>}
+            {createInScope && createLocation.isError && <Alert className="mb-4">{getErrorMessage(createLocation.error)}</Alert>}
 
             <form className="space-y-4" onSubmit={handleSubmit} noValidate>
               <Input
@@ -326,7 +344,7 @@ export default function LocationsPage() {
                 error={errors.code}
                 placeholder="new-york"
                 autoComplete="off"
-                disabled={createLocation.isPending}
+                disabled={createPending}
                 aria-describedby="location-code-hint"
               />
               {!errors.code && <p id="location-code-hint" className="-mt-2 text-xs text-dark-500">Lower-case slug used in references.</p>}
@@ -336,7 +354,7 @@ export default function LocationsPage() {
                 onChange={(event) => setField('name', event.target.value)}
                 error={errors.name}
                 placeholder="New York"
-                disabled={createLocation.isPending}
+                disabled={createPending}
               />
               <div>
                 <Input
@@ -347,14 +365,14 @@ export default function LocationsPage() {
                   placeholder="America/New_York"
                   list="location-timezones"
                   autoComplete="off"
-                  disabled={createLocation.isPending}
+                  disabled={createPending}
                 />
                 <datalist id="location-timezones">
                   {TIMEZONE_OPTIONS.map((timezone) => <option key={timezone} value={timezone} />)}
                 </datalist>
               </div>
-              <Button type="submit" className="flex w-full items-center justify-center gap-2 py-2.5" disabled={createLocation.isPending}>
-                {createLocation.isPending ? <><RefreshCw className="h-4 w-4 animate-spin" /> Creating...</> : <><Plus className="h-4 w-4" /> Create location</>}
+              <Button type="submit" className="flex w-full items-center justify-center gap-2 py-2.5" disabled={createPending}>
+                {createPending ? <><RefreshCw className="h-4 w-4 animate-spin" /> Creating...</> : <><Plus className="h-4 w-4" /> Create location</>}
               </Button>
             </form>
           </aside>

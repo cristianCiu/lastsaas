@@ -141,6 +141,58 @@ func TestValidate_MembershipInvalidRole(t *testing.T) {
 	}
 }
 
+func validStaffProfile() models.StaffProfile {
+	now := time.Now()
+	return models.StaffProfile{
+		ID: primitive.NewObjectID(), TenantID: primitive.NewObjectID(), UserID: primitive.NewObjectID(),
+		BusinessRole: models.BusinessRoleViewer, AllLocations: false,
+		LocationIDs: []primitive.ObjectID{}, PermissionOverrides: []models.PermissionOverride{},
+		Status: models.StaffProfileActive, Version: 1, CreatedAt: now, UpdatedAt: now,
+	}
+}
+
+func TestValidate_StaffProfileStrictValuesAndScope(t *testing.T) {
+	if err := Validate(validStaffProfile()); err != nil {
+		t.Fatalf("valid staff profile failed validation: %v", err)
+	}
+
+	tests := []struct {
+		name   string
+		mutate func(*models.StaffProfile)
+	}{
+		{"unknown role", func(profile *models.StaffProfile) { profile.BusinessRole = "unknown" }},
+		{"unknown permission", func(profile *models.StaffProfile) {
+			profile.PermissionOverrides = []models.PermissionOverride{{Permission: "unknown", Allowed: true}}
+		}},
+		{"unknown status", func(profile *models.StaffProfile) { profile.Status = "disabled" }},
+		{"nil locations", func(profile *models.StaffProfile) { profile.LocationIDs = nil }},
+		{"nil overrides", func(profile *models.StaffProfile) { profile.PermissionOverrides = nil }},
+		{"ambiguous scope", func(profile *models.StaffProfile) {
+			profile.AllLocations = true
+			profile.LocationIDs = []primitive.ObjectID{primitive.NewObjectID()}
+		}},
+		{"duplicate locations", func(profile *models.StaffProfile) {
+			id := primitive.NewObjectID()
+			profile.LocationIDs = []primitive.ObjectID{id, id}
+		}},
+		{"duplicate overrides", func(profile *models.StaffProfile) {
+			profile.PermissionOverrides = []models.PermissionOverride{
+				{Permission: models.PermissionStorageAreasRead, Allowed: true},
+				{Permission: models.PermissionStorageAreasRead, Allowed: false},
+			}
+		}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			profile := validStaffProfile()
+			test.mutate(&profile)
+			if err := Validate(profile); err == nil {
+				t.Fatal("expected validation error")
+			}
+		})
+	}
+}
+
 func TestValidate_ValidAPIKey(t *testing.T) {
 	k := models.APIKey{
 		Name: "test-key", KeyHash: "hash", KeyPreview: "prev",

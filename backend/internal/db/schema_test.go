@@ -81,3 +81,26 @@ func TestRestaurantCollectionsUseStrictCriticalSchemas(t *testing.T) {
 		t.Errorf("%s schema missing from AllSchemas", missing)
 	}
 }
+
+func TestStaffProfilesSchemaIsStrictAndComplete(t *testing.T) {
+	var staff CollectionSchema
+	for _, schema := range AllSchemas() {
+		if schema.Collection == "staff_profiles" {
+			staff = schema
+			break
+		}
+	}
+	if staff.Collection == "" || !staff.Critical || staff.ValidationLevel != "strict" {
+		t.Fatal("staff_profiles must have a critical strict schema")
+	}
+	jsonSchema := staff.Schema["$jsonSchema"].(bson.M)
+	if additional := jsonSchema["additionalProperties"].(bool); additional {
+		t.Fatal("staff_profiles must reject additional properties")
+	}
+	if required := jsonSchema["required"].(bson.A); len(required) != 11 {
+		t.Fatalf("unexpected staff profile required fields: %#v", required)
+	}
+	if staff.Schema["$expr"] == nil {
+		t.Fatal("staff profile schema must enforce cross-field and override uniqueness rules")
+	}
+}

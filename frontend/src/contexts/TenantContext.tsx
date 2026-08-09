@@ -3,6 +3,7 @@ import { setTenantHeader } from '../api/client';
 import { useAuth } from './AuthContext';
 import type { MembershipInfo } from '../types';
 import { ActiveLocationProvider } from './ActiveLocationContext';
+import { StaffProfileProvider } from './StaffProfileContext';
 
 interface TenantContextType {
   activeTenant: MembershipInfo | null;
@@ -16,7 +17,7 @@ const TenantContext = createContext<TenantContextType | null>(null);
 const ACTIVE_TENANT_KEY = 'lastsaas_active_tenant';
 
 export function TenantProvider({ children }: { children: ReactNode }) {
-  const { memberships, isAuthenticated } = useAuth();
+  const { memberships, isAuthenticated, user } = useAuth();
   const [activeTenant, setActiveTenantState] = useState<MembershipInfo | null>(null);
 
   const setActiveTenant = useCallback((membership: MembershipInfo) => {
@@ -50,12 +51,19 @@ export function TenantProvider({ children }: { children: ReactNode }) {
 
   return (
     <TenantContext.Provider value={{ activeTenant, setActiveTenant, isRootTenant, role }}>
-      <ActiveLocationProvider
+      <StaffProfileProvider
+        principalId={user?.id ?? ''}
         tenantId={activeTenant?.tenantId ?? ''}
-        enabled={isAuthenticated && !!activeTenant && !isRootTenant}
+        enabled={isAuthenticated && !!user && !!activeTenant && !isRootTenant}
       >
-        {children}
-      </ActiveLocationProvider>
+        <ActiveLocationProvider
+          principalId={user?.id ?? ''}
+          tenantId={activeTenant?.tenantId ?? ''}
+          enabled={isAuthenticated && !!user && !!activeTenant && !isRootTenant}
+        >
+          {children}
+        </ActiveLocationProvider>
+      </StaffProfileProvider>
     </TenantContext.Provider>
   );
 }

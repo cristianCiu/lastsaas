@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-Phase 1B: restaurant settings and location-scoped storage areas.
+Phase 1C: staff profiles and independent location authorization.
 
 ## Completed
 
@@ -28,6 +28,14 @@ Phase 1B: restaurant settings and location-scoped storage areas.
 - Strict critical MongoDB schemas and indexes cover restaurant settings and storage areas, including rejection of whitespace-only names and invalid enum values.
 - Responsive restaurant and storage-area settings pages include workspace navigation, active-location scoping, read-only and empty states, version-conflict recovery, and mutation race isolation.
 - Frontend verification now covers 30 tests across eight files; lint and the production build pass.
+- Staff profiles extend tenant memberships with separate restaurant business roles, active status, all-location or explicit location assignments, and versioned permission overrides.
+- Startup reconciliation creates conservative defaults for missing non-root profiles while validating existing profiles and failing closed on malformed authorization data.
+- A critical partial unique index and transactional ownership workflows enforce exactly one tenant owner under concurrent transfers.
+- Product authorization now enforces active staff profile, indistinguishable tenant/location scope, and explicit business permission checks before storage operations.
+- Location lists are filtered by the caller's staff assignment; storage read and manage permissions are resolved independently with explicit overrides taking precedence.
+- Membership creation, invitation acceptance, removal, ownership transfer, account deletion, and administrative deletion keep staff profiles transactionally consistent.
+- Responsive Team management separates workspace roles from restaurant roles, supports location assignments and permission overrides, and scopes caches and mutations by principal and tenant.
+- Frontend verification now covers 43 tests across eleven files; lint, type-check, production build, and 16 Playwright smoke tests pass.
 
 ## Baseline Fixes
 
@@ -45,7 +53,7 @@ Phase 1B: restaurant settings and location-scoped storage areas.
 
 ## Active Task
 
-Implement staff profiles, business roles, and independent location permissions before exposing storage areas or broader operational data to non-admin staff.
+Implement tenant-safe restaurant branding and onboarding on top of the completed product authorization boundary before broader inventory master data.
 
 ## Known Follow-Ups
 
