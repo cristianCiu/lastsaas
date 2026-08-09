@@ -101,14 +101,6 @@ const gridStroke = '#1e293b';
 const axisFill = '#64748b';
 
 export default function MetricsCharts({ metrics, filterMode }: MetricsChartsProps) {
-  if (metrics.length === 0) {
-    return (
-      <div className="bg-dark-900/50 border border-dark-800 rounded-2xl p-8 text-center text-dark-400">
-        No historical metrics available for this time range.
-      </div>
-    );
-  }
-
   const { data, nodeIds, isMultiNode } = useMemo(() => {
     const nodeGroups = groupByNode(metrics);
     const ids = Array.from(nodeGroups.keys());
@@ -163,6 +155,14 @@ export default function MetricsCharts({ metrics, filterMode }: MetricsChartsProp
     }));
     return { data: single, nodeIds: ids, isMultiNode: false };
   }, [metrics, filterMode]);
+
+  if (metrics.length === 0) {
+    return (
+      <div className="bg-dark-900/50 border border-dark-800 rounded-2xl p-8 text-center text-dark-400">
+        No historical metrics available for this time range.
+      </div>
+    );
+  }
   const tt = tooltipStyle();
 
   function renderLines(prefix: string) {

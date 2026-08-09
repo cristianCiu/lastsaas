@@ -18,13 +18,21 @@ type MongoDB struct {
 }
 
 func NewMongoDB(uri, database string) (*MongoDB, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	connectTimeout := 10 * time.Second
+	minPoolSize := uint64(5)
+	if os.Getenv("LASTSAAS_ENV") == "test" {
+		connectTimeout = 30 * time.Second
+		minPoolSize = 0
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), connectTimeout)
 	defer cancel()
 
 	clientOptions := options.Client().
 		ApplyURI(uri).
 		SetMaxPoolSize(100).
-		SetMinPoolSize(5).
+		SetMinPoolSize(minPoolSize).
+		SetServerSelectionTimeout(connectTimeout).
 		SetMaxConnIdleTime(5 * time.Minute)
 
 	client, err := mongo.Connect(ctx, clientOptions)
@@ -43,7 +51,10 @@ func NewMongoDB(uri, database string) (*MongoDB, error) {
 
 	db.ensureIndexes()
 	if os.Getenv("LASTSAAS_ENV") != "test" {
-		db.EnsureSchemaValidation()
+		if err := db.EnsureSchemaValidation(); err != nil {
+			_ = client.Disconnect(ctx)
+			return nil, err
+		}
 	}
 
 	return db, nil
@@ -57,6 +68,14 @@ func (m *MongoDB) ensureIndexes() {
 		collection string
 		models     []mongo.IndexModel
 	}{
+		{
+			"locations",
+			[]mongo.IndexModel{
+				{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "code", Value: 1}}, Options: options.Index().SetName("locations_tenant_code_unique").SetUnique(true)},
+				{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "limitSlot", Value: 1}}, Options: options.Index().SetName("locations_tenant_limit_slot_unique").SetUnique(true)},
+				{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "isActive", Value: 1}}, Options: options.Index().SetName("locations_tenant_active")},
+			},
+		},
 		{
 			"users",
 			[]mongo.IndexModel{
@@ -311,6 +330,7 @@ func (m *MongoDB) ensureIndexes() {
 		"api_keys": true, "config_vars": true, "stripe_mappings": true,
 		"custom_pages": true, "branding_assets": true, "webauthn_credentials": true,
 		"sso_connections": true, "auth_codes": true,
+		"locations": true,
 	}
 
 	for _, idx := range indexes {
@@ -480,4 +500,8 @@ func (m *MongoDB) TelemetryEvents() *mongo.Collection {
 
 func (m *MongoDB) EventDefinitions() *mongo.Collection {
 	return m.Database.Collection("event_definitions")
+}
+
+func (m *MongoDB) Locations() *mongo.Collection {
+	return m.Database.Collection("locations")
 }

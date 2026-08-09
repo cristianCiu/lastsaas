@@ -3,7 +3,7 @@ import axios, { AxiosError } from 'axios';
 import { getErrorMessage } from './errors';
 
 describe('getErrorMessage', () => {
-  it('extracts error field from AxiosError response', () => {
+  it('uses a generic status message for unstructured API errors', () => {
     const err = new AxiosError('Request failed', '404', undefined, undefined, {
       status: 404,
       statusText: 'Not Found',
@@ -11,10 +11,10 @@ describe('getErrorMessage', () => {
       config: { headers: new axios.AxiosHeaders() },
       data: { error: 'User not found' },
     });
-    expect(getErrorMessage(err)).toBe('User not found');
+    expect(getErrorMessage(err)).toBe('The requested resource was not found.');
   });
 
-  it('handles string response data', () => {
+  it('does not expose raw string response data', () => {
     const err = new AxiosError('Request failed', '400', undefined, undefined, {
       status: 400,
       statusText: 'Bad Request',
@@ -22,7 +22,18 @@ describe('getErrorMessage', () => {
       config: { headers: new axios.AxiosHeaders() },
       data: 'Raw error string',
     });
-    expect(getErrorMessage(err)).toBe('Raw error string');
+    expect(getErrorMessage(err)).toBe('Invalid request. Please check your input.');
+  });
+
+  it('uses user-safe messages from structured API errors', () => {
+    const err = new AxiosError('Request failed', '404', undefined, undefined, {
+      status: 404,
+      statusText: 'Not Found',
+      headers: {},
+      config: { headers: new axios.AxiosHeaders() },
+      data: { code: 'USER_NOT_FOUND', error: 'User not found' },
+    });
+    expect(getErrorMessage(err)).toBe('User not found');
   });
 
   it('handles 429 rate limit without error field', () => {

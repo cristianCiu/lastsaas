@@ -2,7 +2,10 @@ package validation
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
+	"time"
+	_ "time/tzdata"
 
 	"lastsaas/internal/models"
 
@@ -10,6 +13,8 @@ import (
 )
 
 var v *validator.Validate
+
+var locationCodePattern = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
 
 func init() {
 	v = validator.New()
@@ -54,6 +59,17 @@ func init() {
 	v.RegisterValidation("valid_logo_mode", func(fl validator.FieldLevel) bool {
 		s := fl.Field().String()
 		return s == "" || s == "text" || s == "image" || s == "both"
+	})
+	v.RegisterValidation("location_code", func(fl validator.FieldLevel) bool {
+		return locationCodePattern.MatchString(fl.Field().String())
+	})
+	v.RegisterValidation("iana_timezone", func(fl validator.FieldLevel) bool {
+		name := fl.Field().String()
+		if name == "Local" {
+			return false
+		}
+		_, err := time.LoadLocation(name)
+		return err == nil
 	})
 }
 

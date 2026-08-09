@@ -36,6 +36,7 @@ const (
 	CodeTokenExpired     Code = "TOKEN_EXPIRED"
 	CodeEmailNotVerified Code = "EMAIL_NOT_VERIFIED"
 	CodePlanLimit        Code = "PLAN_LIMIT"
+	CodeVersionConflict  Code = "VERSION_CONFLICT"
 )
 
 // Response is the JSON error response structure.
@@ -83,6 +84,11 @@ func Conflict(w http.ResponseWriter, r *http.Request, message string) {
 	Write(w, http.StatusConflict, CodeConflict, message, r)
 }
 
+// VersionConflict sends a 409 error for a stale optimistic-lock version.
+func VersionConflict(w http.ResponseWriter, r *http.Request, message string) {
+	Write(w, http.StatusConflict, CodeVersionConflict, message, r)
+}
+
 // Validation sends a 400 error with VALIDATION_ERROR code.
 func Validation(w http.ResponseWriter, r *http.Request, message string) {
 	Write(w, http.StatusBadRequest, CodeValidation, message, r)
@@ -96,4 +102,9 @@ func Internal(w http.ResponseWriter, r *http.Request, message string) {
 // RateLimited sends a 429 error.
 func RateLimited(w http.ResponseWriter, r *http.Request, message string) {
 	Write(w, http.StatusTooManyRequests, CodeRateLimited, message, r)
+}
+
+// PlanLimit sends a 409 error when a plan's numeric resource cap is reached.
+func PlanLimit(w http.ResponseWriter, r *http.Request, message string) {
+	Write(w, http.StatusConflict, CodePlanLimit, message, r)
 }

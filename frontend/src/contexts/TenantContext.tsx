@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback, type React
 import { setTenantHeader } from '../api/client';
 import { useAuth } from './AuthContext';
 import type { MembershipInfo } from '../types';
+import { ActiveLocationProvider } from './ActiveLocationContext';
 
 interface TenantContextType {
   activeTenant: MembershipInfo | null;
@@ -49,7 +50,12 @@ export function TenantProvider({ children }: { children: ReactNode }) {
 
   return (
     <TenantContext.Provider value={{ activeTenant, setActiveTenant, isRootTenant, role }}>
-      {children}
+      <ActiveLocationProvider
+        tenantId={activeTenant?.tenantId ?? ''}
+        enabled={isAuthenticated && !!activeTenant && !isRootTenant}
+      >
+        {children}
+      </ActiveLocationProvider>
     </TenantContext.Provider>
   );
 }

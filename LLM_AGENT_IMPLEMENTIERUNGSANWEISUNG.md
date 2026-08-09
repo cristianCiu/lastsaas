@@ -20,6 +20,12 @@ Der Auftraggeber ist der SaaS-Anbieter, nicht der Betreiber eines einzelnen Rest
 
 ## 2. Verbindliche Quellen und Priorität
 
+### Aktueller Repository-Zustand
+
+Das Arbeitsrepository ist bereits der direkte Fork und enthält `backend/` sowie `frontend/`. Die unten genannten historischen Windows-Pfade und die Übernahme aus einem Download-Archiv sind nicht mehr auszuführen. Arbeite im aktuellen Git-Checkout und bewahre dessen Historie. Für die konkretisierte Reihenfolge und Architekturentscheidungen gelten außerdem `docs/IMPLEMENTATION_SEQUENCE.md` und `docs/adr/`.
+
+Vor dem breiten Branding-Scope wird zuerst die Produkt-Sicherheitsgrenze mit tenantisolierten Standorten implementiert. Das bestehende globale Branding bleibt Plattform-Branding; seine HTML-, CSS- und Script-Funktionen dürfen niemals für Tenant- oder Standort-Branding freigegeben werden.
+
 Arbeitsrepository:
 
 ```text
@@ -484,4 +490,3 @@ Am Ende liefere:
 6. Lege Status/ADR/Deployment-Dokumentation an.
 7. Implementiere Phase 1 als erste vollständige vertikale Produktphase.
 8. Fahre nach grünem Exit-Gate selbstständig mit Phase 2 fort.
-

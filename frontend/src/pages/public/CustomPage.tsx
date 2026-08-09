@@ -12,12 +12,29 @@ export default function CustomPage() {
   const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
-    if (!slug) return;
+    let cancelled = false;
+    setPage(null);
+    setNotFound(false);
     setLoading(true);
+
+    if (!slug) {
+      setNotFound(true);
+      setLoading(false);
+      return () => { cancelled = true; };
+    }
+
     brandingApi.getPublicPage(slug)
-      .then(setPage)
-      .catch(() => setNotFound(true))
-      .finally(() => setLoading(false));
+      .then(data => {
+        if (!cancelled) setPage(data);
+      })
+      .catch(() => {
+        if (!cancelled) setNotFound(true);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => { cancelled = true; };
   }, [slug]);
 
   useEffect(() => {

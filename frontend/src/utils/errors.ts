@@ -28,14 +28,9 @@ export function getErrorMessage(err: unknown): string {
     // For errors without a structured code, use generic status-based messages
     if (status && STATUS_MESSAGES[status]) return STATUS_MESSAGES[status];
 
-    // Fallback: use backend error string only if it looks safe (no internal details)
-    if (data && typeof data === 'object' && 'error' in data) {
-      const msg = String(data.error);
-      // Allow short, user-facing messages; block verbose internal errors
-      if (msg.length <= 200) return msg;
-    }
-
-    if (err.message) return err.message;
+    // Axios errors without a response are network/client failures, where the
+    // local error message cannot contain a backend implementation detail.
+    if (!err.response && err.message) return err.message;
   }
   if (err instanceof Error) return err.message;
   return 'An unexpected error occurred';

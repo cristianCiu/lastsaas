@@ -51,7 +51,7 @@ export default function UserProfilePage() {
     } finally {
       setLoading(false);
     }
-  }, [userId, navigate]);
+  }, [userId]);
 
   useEffect(() => { fetchUser(); }, [fetchUser]);
 

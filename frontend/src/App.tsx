@@ -36,6 +36,7 @@ import BillingCancelPage from './pages/app/BillingCancelPage';
 import TestEntitlementsPage from './pages/app/TestEntitlementsPage';
 import ActivityPage from './pages/app/ActivityPage';
 import OnboardingPage from './pages/app/OnboardingPage';
+import LocationsPage from './features/locations/LocationsPage';
 
 // Admin pages (lazy — only loaded by root tenant admins)
 const AdminDashboardPage = lazy(() => import('./pages/admin/DashboardPage'));
@@ -159,6 +160,7 @@ export default function App() {
                         <Route path="/billing/success" element={<BillingSuccessPage />} />
                         <Route path="/billing/cancel" element={<BillingCancelPage />} />
                         <Route path="/settings" element={<SettingsPage />} />
+                        <Route path="/settings/locations" element={<LocationsPage />} />
                         <Route path="/activity" element={<ActivityPage />} />
                         <Route path="/test-entitlements" element={<TestEntitlementsPage />} />
                         <Route path="/messages" element={<Suspense fallback={<LazyFallback />}><AdminMessagesPage /></Suspense>} />

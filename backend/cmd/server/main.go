@@ -16,6 +16,7 @@ import (
 	"lastsaas/internal/auth"
 	"lastsaas/internal/config"
 	"lastsaas/internal/configstore"
+	"lastsaas/internal/datadog"
 	"lastsaas/internal/db"
 	"lastsaas/internal/email"
 	"lastsaas/internal/events"
@@ -24,10 +25,10 @@ import (
 	"lastsaas/internal/middleware"
 	"lastsaas/internal/models"
 	"lastsaas/internal/planstore"
+	"lastsaas/internal/product"
 	stripeservice "lastsaas/internal/stripe"
 	"lastsaas/internal/syslog"
 	"lastsaas/internal/telemetry"
-	"lastsaas/internal/datadog"
 	"lastsaas/internal/version"
 	"lastsaas/internal/webhooks"
 
@@ -568,6 +569,8 @@ func main() {
 	ownerRouter.Use(middleware.RequireRole(models.RoleOwner))
 	ownerRouter.HandleFunc("/role", tenantHandler.ChangeRole).Methods("PATCH")
 	ownerRouter.HandleFunc("/transfer-ownership", tenantHandler.TransferOwnership).Methods("POST")
+
+	product.RegisterRoutes(guarded, database, authMiddleware, tenantMiddleware, sysLogger)
 
 	// Message routes (require JWT, user-scoped)
 	messageAPI := guarded.PathPrefix("/messages").Subrouter()

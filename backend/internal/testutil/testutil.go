@@ -37,7 +37,9 @@ func loadEnvTest() {
 				if idx := strings.IndexByte(line, '='); idx > 0 {
 					key := strings.TrimSpace(line[:idx])
 					val := strings.TrimSpace(line[idx+1:])
-					os.Setenv(key, val)
+					if _, exists := os.LookupEnv(key); !exists {
+						os.Setenv(key, val)
+					}
 				}
 			}
 			return
@@ -201,6 +203,7 @@ func CleanupCollections(t *testing.T, database *db.MongoDB) {
 		"branding_config", "branding_assets", "custom_pages",
 		"webauthn_credentials", "webauthn_sessions", "sso_connections",
 		"announcements", "usage_events", "rate_limits",
+		"locations",
 	}
 	for _, name := range collections {
 		database.Database.Collection(name).DeleteMany(ctx, bson.M{})
@@ -257,13 +260,14 @@ func CreateTestTenant(t *testing.T, database *db.MongoDB, name string, ownerID p
 	ctx := context.Background()
 
 	tenant := models.Tenant{
-		ID:        primitive.NewObjectID(),
-		Name:      name,
-		Slug:      strings.ToLower(strings.ReplaceAll(name, " ", "-")),
-		IsRoot:    isRoot,
-		IsActive:  true,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		ID:            primitive.NewObjectID(),
+		Name:          name,
+		Slug:          strings.ToLower(strings.ReplaceAll(name, " ", "-")),
+		IsRoot:        isRoot,
+		IsActive:      true,
+		BillingStatus: models.BillingStatusNone,
+		CreatedAt:     time.Now(),
+		UpdatedAt:     time.Now(),
 	}
 
 	_, err := database.Tenants().InsertOne(ctx, tenant)

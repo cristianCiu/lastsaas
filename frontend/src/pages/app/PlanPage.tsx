@@ -113,7 +113,7 @@ export default function PlanPage() {
       if (result.waived) {
         window.location.reload();
       } else if (result.checkoutUrl) {
-        window.location.href = result.checkoutUrl;
+        window.location.assign(result.checkoutUrl);
       }
     } catch {
       // Error handled by interceptor

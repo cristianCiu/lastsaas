@@ -461,7 +461,7 @@ export interface APIKey {
 
 // --- Webhooks ---
 
-export type WebhookEventType = 'tenant.created';
+export type WebhookEventType = string;
 
 export interface Webhook {
   id: string;

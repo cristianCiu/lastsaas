@@ -446,7 +446,7 @@ function RevealSecretModal({ secret, webhookName, onClose }: {
             </button>
           </div>
           <p className="text-xs text-dark-500">
-            Use this secret to verify webhook signatures. You can always view or regenerate it from the webhook detail view.
+            Store this secret now. It is only shown once; regenerating it invalidates the current secret.
           </p>
         </div>
         <div className="flex justify-end p-6 pt-0">
@@ -481,14 +481,15 @@ function WebhookFormModal({ webhook, onClose, onSaved }: {
       setEventTypes(d.eventTypes);
       // Auto-expand categories that have selected events
       const cats = new Set<string>();
+      const selectedEvents: readonly string[] = webhook?.events ?? ['tenant.created'];
       for (const et of d.eventTypes) {
-        if ((webhook?.events || ['tenant.created']).includes(et.type as any)) {
+        if (selectedEvents.includes(et.type)) {
           cats.add(et.category);
         }
       }
       setExpandedCategories(cats);
     }).catch(err => toast.error(getErrorMessage(err)));
-  }, []);
+  }, [webhook?.events]);
 
   const toggleEvent = (type: string) => {
     setEvents(prev => prev.includes(type) ? prev.filter(e => e !== type) : [...prev, type]);
@@ -497,7 +498,11 @@ function WebhookFormModal({ webhook, onClose, onSaved }: {
   const toggleCategory = (category: string) => {
     setExpandedCategories(prev => {
       const next = new Set(prev);
-      next.has(category) ? next.delete(category) : next.add(category);
+      if (next.has(category)) {
+        next.delete(category);
+      } else {
+        next.add(category);
+      }
       return next;
     });
   };
@@ -755,7 +760,7 @@ function WebhookDetailModal({ webhookId, onClose, onRefresh, canWrite }: {
       <WebhookFormModal
         webhook={hook}
         onClose={() => setEditing(false)}
-        onSaved={(_data) => {
+        onSaved={() => {
           setEditing(false);
           fetchDetail();
           onRefresh();
@@ -787,12 +792,14 @@ function WebhookDetailModal({ webhookId, onClose, onRefresh, canWrite }: {
               <div className="flex items-center justify-between mb-1.5">
                 <span className="text-dark-500 text-xs">Signing Secret</span>
                 <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setSecretRevealed(!secretRevealed)}
-                    className="text-xs text-primary-400 hover:text-primary-300 transition-colors"
-                  >
-                    {secretRevealed ? 'Hide' : 'Reveal'}
-                  </button>
+                  {secret && (
+                    <button
+                      onClick={() => setSecretRevealed(!secretRevealed)}
+                      className="text-xs text-primary-400 hover:text-primary-300 transition-colors"
+                    >
+                      {secretRevealed ? 'Hide' : 'Reveal'}
+                    </button>
+                  )}
                   {canWrite && (
                     <button
                       onClick={handleRegenerate}
@@ -804,7 +811,7 @@ function WebhookDetailModal({ webhookId, onClose, onRefresh, canWrite }: {
                   )}
                 </div>
               </div>
-              {secretRevealed ? (
+              {secret && secretRevealed ? (
                 <div className="relative">
                   <code className="block w-full p-2.5 bg-dark-800 border border-dark-700 rounded-lg text-xs text-emerald-400 font-mono break-all pr-10">
                     {secret}

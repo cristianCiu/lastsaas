@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -10,11 +11,13 @@ import (
 
 // CollectionSchema pairs a collection name with its JSON Schema validator.
 type CollectionSchema struct {
-	Collection string
-	Schema     bson.M
+	Collection      string
+	Schema          bson.M
+	Critical        bool
+	ValidationLevel string
 }
 
-// AllSchemas returns the JSON Schema validators for all 15 validated collections.
+// AllSchemas returns the JSON Schema validators for all validated collections.
 func AllSchemas() []CollectionSchema {
 	return []CollectionSchema{
 		usersSchema(),
@@ -33,12 +36,40 @@ func AllSchemas() []CollectionSchema {
 		usageEventsSchema(),
 		ssoConnectionsSchema(),
 		eventDefinitionsSchema(),
+		locationsSchema(),
+	}
+}
+
+func locationsSchema() CollectionSchema {
+	return CollectionSchema{
+		Collection:      "locations",
+		Critical:        true,
+		ValidationLevel: "strict",
+		Schema: bson.M{
+			"$jsonSchema": bson.M{
+				"bsonType":             "object",
+				"additionalProperties": false,
+				"required":             bson.A{"_id", "tenantId", "code", "name", "timezone", "isActive", "version", "createdAt", "updatedAt", "limitSlot"},
+				"properties": bson.M{
+					"_id":       bson.M{"bsonType": "objectId"},
+					"tenantId":  bson.M{"bsonType": "objectId"},
+					"code":      bson.M{"bsonType": "string", "minLength": 1, "maxLength": 64, "pattern": `^[a-z0-9]+(?:-[a-z0-9]+)*$`},
+					"name":      bson.M{"bsonType": "string", "minLength": 1, "maxLength": 200},
+					"timezone":  bson.M{"bsonType": "string", "minLength": 1, "maxLength": 100},
+					"isActive":  bson.M{"bsonType": "bool"},
+					"version":   bson.M{"bsonType": "long", "minimum": 1},
+					"createdAt": bson.M{"bsonType": "date"},
+					"updatedAt": bson.M{"bsonType": "date"},
+					"limitSlot": bson.M{"bsonType": "long", "minimum": 1},
+				},
+			},
+		},
 	}
 }
 
 // EnsureSchemaValidation applies JSON Schema validators to all validated
 // collections using collMod with moderate validation level.
-func (m *MongoDB) EnsureSchemaValidation() {
+func (m *MongoDB) EnsureSchemaValidation() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
@@ -46,17 +77,25 @@ func (m *MongoDB) EnsureSchemaValidation() {
 		// Ensure the collection exists (ignore "already exists" errors).
 		_ = m.Database.CreateCollection(ctx, cs.Collection)
 
+		validationLevel := cs.ValidationLevel
+		if validationLevel == "" {
+			validationLevel = "moderate"
+		}
 		cmd := bson.D{
 			{Key: "collMod", Value: cs.Collection},
 			{Key: "validator", Value: cs.Schema},
-			{Key: "validationLevel", Value: "moderate"},
+			{Key: "validationLevel", Value: validationLevel},
 			{Key: "validationAction", Value: "error"},
 		}
 
 		if err := m.Database.RunCommand(ctx, cmd).Err(); err != nil {
+			if cs.Critical {
+				return fmt.Errorf("apply schema validation to critical collection %s: %w", cs.Collection, err)
+			}
 			slog.Warn("failed to apply schema validation", "collection", cs.Collection, "error", err)
 		}
 	}
+	return nil
 }
 
 // ---------------------------------------------------------------------------

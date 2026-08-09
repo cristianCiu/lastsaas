@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { CreditCard, Receipt, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 import { billingApi, plansApi } from '../../../api/client';
@@ -20,7 +20,7 @@ export default function BillingTab() {
   const [portalLoading, setPortalLoading] = useState(false);
   const [selectedTx, setSelectedTx] = useState<FinancialTransaction | null>(null);
 
-  const loadBillingData = () => {
+  const loadBillingData = useCallback(() => {
     setBillingLoading(true);
     Promise.all([
       plansApi.list(),
@@ -37,9 +37,9 @@ export default function BillingTab() {
       })
       .catch(err => toast.error(getErrorMessage(err)))
       .finally(() => setBillingLoading(false));
-  };
+  }, [txPage]);
 
-  useEffect(() => { loadBillingData(); }, [txPage]);
+  useEffect(() => { loadBillingData(); }, [loadBillingData]);
 
   const handlePortal = async () => {
     setPortalLoading(true);

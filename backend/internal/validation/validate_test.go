@@ -167,7 +167,7 @@ func TestValidate_ValidPlan(t *testing.T) {
 	p := models.Plan{
 		Name: "Pro", PricingModel: models.PricingModelFlat,
 		CreditResetPolicy: models.CreditResetPolicyReset,
-		CreatedAt: time.Now(), UpdatedAt: time.Now(),
+		CreatedAt:         time.Now(), UpdatedAt: time.Now(),
 	}
 	if err := Validate(&p); err != nil {
 		t.Errorf("expected valid plan to pass: %v", err)
@@ -178,7 +178,7 @@ func TestValidate_PlanInvalidPricingModel(t *testing.T) {
 	p := models.Plan{
 		Name: "Bad", PricingModel: "usage_based",
 		CreditResetPolicy: models.CreditResetPolicyReset,
-		CreatedAt: time.Now(), UpdatedAt: time.Now(),
+		CreatedAt:         time.Now(), UpdatedAt: time.Now(),
 	}
 	if err := Validate(&p); err == nil {
 		t.Fatal("expected validation error for invalid pricing model")
@@ -190,7 +190,7 @@ func TestValidate_PlanNegativePrice(t *testing.T) {
 		Name: "Bad", PricingModel: models.PricingModelFlat,
 		CreditResetPolicy: models.CreditResetPolicyReset,
 		MonthlyPriceCents: -100,
-		CreatedAt: time.Now(), UpdatedAt: time.Now(),
+		CreatedAt:         time.Now(), UpdatedAt: time.Now(),
 	}
 	if err := Validate(&p); err == nil {
 		t.Fatal("expected validation error for negative price")
@@ -308,5 +308,48 @@ func TestValidate_ErrorFormatting(t *testing.T) {
 	msg := err.Error()
 	if !strings.HasPrefix(msg, "validation failed: ") {
 		t.Errorf("expected 'validation failed:' prefix, got: %s", msg)
+	}
+}
+
+func validLocation() models.Location {
+	now := time.Now()
+	return models.Location{
+		TenantID: primitive.NewObjectID(), Code: "berlin-mitte", Name: "Berlin Mitte",
+		Timezone: "Europe/Berlin", IsActive: true, Version: 1, LimitSlot: 1, CreatedAt: now, UpdatedAt: now,
+	}
+}
+
+func TestValidate_ValidLocation(t *testing.T) {
+	location := validLocation()
+	if err := Validate(&location); err != nil {
+		t.Fatalf("expected valid location to pass: %v", err)
+	}
+}
+
+func TestValidate_LocationCodeMustBeLowerCase(t *testing.T) {
+	location := validLocation()
+	location.Code = "Berlin-Mitte"
+	if err := Validate(&location); err == nil {
+		t.Fatal("expected mixed-case location code to fail")
+	}
+}
+
+func TestValidate_LocationCodeRejectsInvalidShape(t *testing.T) {
+	for _, code := range []string{"berlin mitte", "berlin_mitte", "-berlin", "berlin-"} {
+		location := validLocation()
+		location.Code = code
+		if err := Validate(&location); err == nil {
+			t.Errorf("expected location code %q to fail", code)
+		}
+	}
+}
+
+func TestValidate_LocationRequiresIANATimezone(t *testing.T) {
+	for _, timezone := range []string{"Europe/Not_A_City", "Local"} {
+		location := validLocation()
+		location.Timezone = timezone
+		if err := Validate(&location); err == nil {
+			t.Errorf("expected timezone %q to fail", timezone)
+		}
 	}
 }

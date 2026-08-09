@@ -34,7 +34,7 @@ export default function BuyCreditsPage() {
     try {
       const result = await billingApi.checkout({ bundleId });
       if (result.checkoutUrl) {
-        window.location.href = result.checkoutUrl;
+        window.location.assign(result.checkoutUrl);
       }
     } catch {
       // Error handled by interceptor

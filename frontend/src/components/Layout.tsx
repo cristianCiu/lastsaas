@@ -1,12 +1,13 @@
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Users, Settings, LogOut, Shield, ChevronDown, Bell, CreditCard, Zap,
-  FileText, Image, Globe, Star, Heart, BookOpen, MessageCircle, HelpCircle, Sun, Moon, Megaphone,
+  FileText, Image, Globe, Star, Heart, BookOpen, MessageCircle, HelpCircle, Sun, Moon, Megaphone, MapPin,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTenant } from '../contexts/TenantContext';
 import { useBranding } from '../contexts/BrandingContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { useActiveLocation } from '../contexts/ActiveLocationContext';
 import { messagesApi, plansApi, bundlesApi, announcementsApi } from '../api/client';
 import ImpersonationBanner from './ImpersonationBanner';
 import { useState, useRef, useEffect } from 'react';
@@ -20,7 +21,8 @@ export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, isAuthenticated, logout, memberships } = useAuth();
-  const { activeTenant, setActiveTenant } = useTenant();
+  const { activeTenant, setActiveTenant, isRootTenant } = useTenant();
+  const { locations, loading: locationsLoading, error: locationsError, activeLocation, setActiveLocation } = useActiveLocation();
   const { branding } = useBranding();
   const { resolvedTheme, setTheme } = useTheme();
   const [showTenantMenu, setShowTenantMenu] = useState(false);
@@ -89,6 +91,7 @@ export default function Layout() {
     ...(showTeam ? [{ path: '/team', icon: Users, label: 'Team' }] : []),
     { path: '/plan', icon: CreditCard, label: 'Plan' },
     { path: '/settings', icon: Settings, label: 'Settings' },
+    { path: '/settings/locations', icon: MapPin, label: 'Locations' },
   ];
 
   const navItems = branding.navItems.length > 0
@@ -171,7 +174,31 @@ export default function Layout() {
 
             {/* Right side */}
             {isAuthenticated && (
-              <div className="flex items-center gap-4">
+              <div className="flex min-w-0 items-center gap-2 sm:gap-4">
+                {!isRootTenant && activeTenant && (
+                  <div className="relative min-w-0">
+                    <label htmlFor="active-location" className="sr-only">Active location</label>
+                    <MapPin className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-dark-500" />
+                    <select
+                      id="active-location"
+                      value={activeLocation?.id ?? ''}
+                      onChange={(event) => setActiveLocation(locations.find((item) => item.id === event.target.value) ?? null)}
+                      disabled={locationsLoading || !!locationsError || !activeLocation}
+                      className="max-w-32 appearance-none truncate rounded-lg border border-dark-700 bg-dark-800 py-1.5 pl-8 pr-6 text-xs text-dark-200 outline-none transition-colors focus:border-primary-500 disabled:cursor-not-allowed disabled:text-dark-500 sm:max-w-44 sm:text-sm"
+                      title={activeLocation?.name ?? (locationsLoading ? 'Loading locations' : locationsError ? 'Locations unavailable' : 'No active locations')}
+                    >
+                      {!activeLocation && (
+                        <option value="">
+                          {locationsLoading ? 'Loading...' : locationsError ? 'Unavailable' : 'No active locations'}
+                        </option>
+                      )}
+                      {locations.filter((item) => item.isActive).map((item) => (
+                        <option key={item.id} value={item.id}>{item.name}</option>
+                      ))}
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 text-dark-500" />
+                  </div>
+                )}
                 {/* Tenant Switcher */}
                 {memberships.length > 1 && (
                   <div className="relative" ref={menuRef}>

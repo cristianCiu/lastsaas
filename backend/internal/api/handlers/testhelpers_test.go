@@ -15,6 +15,7 @@ import (
 	"lastsaas/internal/events"
 	"lastsaas/internal/middleware"
 	"lastsaas/internal/models"
+	"lastsaas/internal/product"
 	"lastsaas/internal/syslog"
 	"lastsaas/internal/testutil"
 
@@ -136,6 +137,8 @@ func setupTestServer(t *testing.T) *testEnv {
 	ownerRouter.Use(middleware.RequireRole(models.RoleOwner))
 	ownerRouter.HandleFunc("/role", tenantHandler.ChangeRole).Methods("PATCH")
 	ownerRouter.HandleFunc("/transfer-ownership", tenantHandler.TransferOwnership).Methods("POST")
+
+	product.RegisterRoutes(guarded, sharedDB, authMiddleware, tenantMiddleware, sysLogger)
 
 	// Billing routes
 	billingAPI := guarded.PathPrefix("/billing").Subrouter()

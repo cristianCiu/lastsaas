@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import { Paintbrush, Upload, X, Check, Plus, Trash2, GripVertical, Eye, EyeOff, FileText, Image, Globe } from 'lucide-react';
 import { toast } from 'sonner';
 import { brandingApi, brandingAdminApi } from '../../api/client';
@@ -39,26 +39,26 @@ export default function BrandingPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => {
-    if (tab === 'media') loadMedia();
-    if (tab === 'pages') loadPages();
-  }, [tab]);
-
-  const loadMedia = () => {
+  const loadMedia = useCallback(() => {
     setMediaLoading(true);
     brandingAdminApi.listMedia()
       .then((data) => setMedia(data.media))
       .catch(err => toast.error(getErrorMessage(err)))
       .finally(() => setMediaLoading(false));
-  };
+  }, []);
 
-  const loadPages = () => {
+  const loadPages = useCallback(() => {
     setPagesLoading(true);
     brandingAdminApi.listPages()
       .then((data) => setPages(data.pages))
       .catch(err => toast.error(getErrorMessage(err)))
       .finally(() => setPagesLoading(false));
-  };
+  }, []);
+
+  useEffect(() => {
+    if (tab === 'media') loadMedia();
+    if (tab === 'pages') loadPages();
+  }, [tab, loadMedia, loadPages]);
 
   const handleSave = async () => {
     if (!config) return;

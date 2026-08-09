@@ -24,13 +24,15 @@ WORKDIR /app
 # Copy backend binary
 COPY --from=backend-builder /build/lastsaas ./lastsaas
 
-# Copy prod config
-COPY backend/config/prod.yaml ./config/prod.yaml
+# Runtime config contains environment references only; secrets stay in the environment.
+COPY backend/config/prod.example.yaml ./config/prod.yaml
 
 # Copy frontend dist
 COPY --from=frontend-builder /build/dist ./static
 
 ENV LASTSAAS_ENV=prod
+ENV SERVER_PORT=8080
+ENV FRONTEND_STATIC_DIR=/app/static
 EXPOSE 8080
 
 CMD ["./lastsaas"]

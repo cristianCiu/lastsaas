@@ -27,7 +27,7 @@ function MetricChart({ data, color, formatter }: { data: DailyMetricPoint[]; col
         <Tooltip
           contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px' }}
           labelStyle={{ color: '#94a3b8' }}
-          formatter={(value: number | undefined) => [formatter(value ?? 0), '']}
+          formatter={(value) => [formatter(typeof value === 'number' ? value : Number(value) || 0), '']}
         />
         <Area type="monotone" dataKey="value" stroke={color} fill={`url(#grad-${color.replace('#', '')})`} strokeWidth={2} />
       </AreaChart>
