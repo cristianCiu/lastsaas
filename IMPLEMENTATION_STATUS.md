@@ -40,7 +40,8 @@ Phase 1C: safe tenant and location branding.
 - Tenant branding is isolated from privileged platform HTML/CSS/script/navigation configuration, rejected for the root tenant, scoped in frontend caches by principal and tenant, and applied only to authenticated workspace routes.
 - Responsive branding self-service includes read-only access, live preview, publish, conflict recovery, and reset-to-platform behavior without accepting external asset URLs.
 - Authenticated tenant logo APIs use separate strict storage, random internal keys, tenant/kind uniqueness, optimistic versions, PNG/JPEG signature and MIME checks, decoded dimension limits, private ETags, owner/admin lifecycle operations, and tenant audit logs.
-- Frontend verification now covers 46 tests across thirteen files; lint, type-check, and the production build pass.
+- Primary and compact tenant logos support authenticated blob loading, scope-bound object URL cleanup, versioned owner/admin upload/delete controls, and tenant-aware workspace header rendering with platform fallback for root and public surfaces.
+- Frontend verification now covers 50 tests across fifteen files; lint, type-check, and the production build pass.
 
 ## Baseline Fixes
 
@@ -58,7 +59,7 @@ Phase 1C: safe tenant and location branding.
 
 ## Active Task
 
-Connect tenant logo management and authenticated rendering in the frontend, then implement location overrides and restaurant onboarding before broader inventory master data.
+Implement safe location branding overrides and deterministic location-to-tenant-to-platform resolution, then restaurant onboarding before broader inventory master data.
 
 ## Known Follow-Ups
 

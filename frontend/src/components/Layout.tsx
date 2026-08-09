@@ -8,6 +8,7 @@ import { useTenant } from '../contexts/TenantContext';
 import { useBranding } from '../contexts/BrandingContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useActiveLocation } from '../contexts/ActiveLocationContext';
+import { useTenantBranding } from '../contexts/TenantBrandingContext';
 import { messagesApi, plansApi, bundlesApi, announcementsApi } from '../api/client';
 import ImpersonationBanner from './ImpersonationBanner';
 import { useState, useRef, useEffect } from 'react';
@@ -24,6 +25,7 @@ export default function Layout() {
   const { activeTenant, setActiveTenant, isRootTenant } = useTenant();
   const { locations, loading: locationsLoading, error: locationsError, activeLocation, setActiveLocation } = useActiveLocation();
   const { branding } = useBranding();
+  const { primaryLogoUrl, compactLogoUrl } = useTenantBranding();
   const { resolvedTheme, setTheme } = useTheme();
   const [showTenantMenu, setShowTenantMenu] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -112,6 +114,9 @@ export default function Layout() {
   const appName = branding.appName || 'LastSaaS';
   const logoMode = branding.logoMode || 'text';
   const logoUrl = branding.logoUrl;
+  const tenantDesktopLogo = !isRootTenant ? primaryLogoUrl || compactLogoUrl : null;
+  const tenantMobileLogo = !isRootTenant ? compactLogoUrl || primaryLogoUrl : null;
+  const workspaceName = tenantDesktopLogo || tenantMobileLogo ? activeTenant?.tenantName ?? appName : appName;
 
   const isImpersonating = localStorage.getItem('lastsaas_impersonating') === 'true';
 
@@ -125,15 +130,20 @@ export default function Layout() {
             {/* Logo + Nav */}
             <div className="flex items-center gap-6">
               <Link to="/dashboard" className="flex items-center gap-2">
-                {(logoMode === 'image' || logoMode === 'both') && logoUrl ? (
+                {tenantDesktopLogo || tenantMobileLogo ? (
+                  <>
+                    {tenantMobileLogo && <img src={tenantMobileLogo} alt={workspaceName} className="h-8 w-8 rounded-lg object-contain sm:hidden" />}
+                    {tenantDesktopLogo && <img src={tenantDesktopLogo} alt={workspaceName} className="hidden h-8 max-w-36 object-contain sm:block" />}
+                  </>
+                ) : (logoMode === 'image' || logoMode === 'both') && logoUrl ? (
                   <img src={logoUrl} alt={appName} className="h-8 w-8 rounded-lg object-contain" />
                 ) : (
                   <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary-500 to-accent-purple flex items-center justify-center">
                     <span className="text-white font-bold text-sm">{appName.slice(0, 2).toUpperCase()}</span>
                   </div>
                 )}
-                {(logoMode === 'text' || logoMode === 'both') && (
-                  <span className="font-semibold text-white hidden sm:block">{appName}</span>
+                {(tenantDesktopLogo || tenantMobileLogo || logoMode === 'text' || logoMode === 'both') && (
+                  <span className="font-semibold text-white hidden sm:block">{workspaceName}</span>
                 )}
               </Link>
 

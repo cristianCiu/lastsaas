@@ -1,28 +1,78 @@
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
-import { AlertCircle, CheckCircle2, LockKeyhole, Paintbrush, RefreshCw, RotateCcw, Save } from 'lucide-react';
+import { AlertCircle, CheckCircle2, ImageUp, LockKeyhole, Paintbrush, RefreshCw, RotateCcw, Save, Trash2 } from 'lucide-react';
 import Alert from '../../components/ui/Alert';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import WorkspaceSettingsNav from '../../components/WorkspaceSettingsNav';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTenantBranding } from '../../contexts/TenantBrandingContext';
 import { useTenant } from '../../contexts/TenantContext';
 import { getErrorMessage } from '../../utils/errors';
 import { tenantBrandingApi } from './api';
 import { tenantBrandingKeys } from './queries';
-import type { TenantBranding, UpdateTenantBrandingInput } from './types';
+import type { TenantBranding, TenantBrandingAsset, TenantBrandingAssetKind, UpdateTenantBrandingInput } from './types';
 import { BRANDING_FONTS, getBrandingFontStack, normalizeTenantBranding, validateTenantBranding, type TenantBrandingFields, type TenantBrandingValidationErrors } from './validation';
 
 const DEFAULT_FORM: TenantBrandingFields = { primaryColor: '', accentColor: '', font: '' };
+const MAX_LOGO_SIZE = 900 * 1024;
 
 function isVersionConflict(error: unknown) {
   return axios.isAxiosError(error) && error.response?.data?.code === 'VERSION_CONFLICT';
 }
 
+function LogoAssetCard({ kind, title, description, asset, logoUrl, canWrite, pending, onUpload, onDelete }: {
+  kind: TenantBrandingAssetKind;
+  title: string;
+  description: string;
+  asset?: TenantBrandingAsset;
+  logoUrl: string | null;
+  canWrite: boolean;
+  pending: boolean;
+  onUpload: (kind: TenantBrandingAssetKind, file: File, version: number) => void;
+  onDelete: (kind: TenantBrandingAssetKind, version: number) => void;
+}) {
+  const inputId = `tenant-${kind}-logo`;
+  return (
+    <div className="flex min-w-0 flex-col gap-4 rounded-xl border border-dark-800 bg-dark-950/60 p-4 sm:flex-row sm:items-center">
+      <div className={`flex shrink-0 items-center justify-center overflow-hidden border border-dark-700 bg-dark-900 ${kind === 'compact' ? 'h-20 w-20 rounded-2xl' : 'h-20 w-full rounded-xl sm:w-44'}`}>
+        {logoUrl ? <img src={logoUrl} alt={`${title} preview`} className="h-full w-full object-contain p-2" /> : <ImageUp className="h-7 w-7 text-dark-600" />}
+      </div>
+      <div className="min-w-0 flex-1">
+        <h3 className="font-medium text-white">{title}</h3>
+        <p className="mt-1 text-xs text-dark-400">{description}</p>
+        {asset && <p className="mt-2 text-xs text-dark-500">{asset.width}×{asset.height}px · {Math.ceil(asset.size / 1024)} KiB · version {asset.version}</p>}
+      </div>
+      {canWrite && (
+        <div className="flex shrink-0 gap-2">
+          <input
+            id={inputId}
+            aria-label={title}
+            type="file"
+            accept="image/png,image/jpeg"
+            className="sr-only"
+            disabled={pending}
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = '';
+              if (file) onUpload(kind, file, asset?.version ?? 0);
+            }}
+          />
+          <label htmlFor={inputId} className={`inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-dark-700 bg-dark-800 px-3 py-1.5 text-xs font-medium text-dark-300 transition-colors hover:text-white ${pending ? 'pointer-events-none opacity-50' : ''}`}>
+            {pending ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <ImageUp className="h-3.5 w-3.5" />}{asset ? 'Replace' : 'Upload'}
+          </label>
+          {asset && <Button type="button" variant="danger" size="sm" disabled={pending} onClick={() => onDelete(kind, asset.version)} className="inline-flex items-center gap-1.5"><Trash2 className="h-3.5 w-3.5" />Remove</Button>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function TenantBrandingPage() {
   const { user } = useAuth();
   const { activeTenant, role, isRootTenant } = useTenant();
+  const { assets, assetsLoading, assetsError, primaryLogoUrl, compactLogoUrl } = useTenantBranding();
   const principalId = user?.id ?? '';
   const tenantId = activeTenant?.tenantId ?? '';
   const canWrite = !isRootTenant && (role === 'owner' || role === 'admin');
@@ -33,6 +83,8 @@ export default function TenantBrandingPage() {
   const [version, setVersion] = useState(0);
   const [errors, setErrors] = useState<TenantBrandingValidationErrors>({});
   const [success, setSuccess] = useState('');
+  const [assetMessage, setAssetMessage] = useState('');
+  const [assetValidationError, setAssetValidationError] = useState('');
 
   const brandingQuery = useQuery({
     queryKey: tenantBrandingKeys.detail(principalId, tenantId),
@@ -58,6 +110,30 @@ export default function TenantBrandingPage() {
       }
     },
   });
+  const uploadAsset = useMutation({
+    mutationFn: ({ kind, file, version }: { principalId: string; tenantId: string; kind: TenantBrandingAssetKind; file: File; version: number }) => tenantBrandingApi.uploadAsset(kind, file, version),
+    onSuccess: ({ asset }, variables) => {
+      const assetsKey = tenantBrandingKeys.assets(variables.principalId, variables.tenantId);
+      queryClient.setQueryData<{ assets: TenantBrandingAsset[] }>(assetsKey, (current) => ({ assets: [...(current?.assets ?? []).filter((item) => item.kind !== asset.kind), asset] }));
+      queryClient.removeQueries({ queryKey: tenantBrandingKeys.assetKind(variables.principalId, variables.tenantId, variables.kind) });
+      if (scope.current === `${variables.principalId}:${variables.tenantId}`) setAssetMessage(`${variables.kind === 'primary' ? 'Primary' : 'Compact'} logo uploaded.`);
+    },
+    onError: async (error, variables) => {
+      if (isVersionConflict(error)) await queryClient.invalidateQueries({ queryKey: tenantBrandingKeys.assets(variables.principalId, variables.tenantId), exact: true });
+    },
+  });
+  const deleteAsset = useMutation({
+    mutationFn: ({ kind, version }: { principalId: string; tenantId: string; kind: TenantBrandingAssetKind; version: number }) => tenantBrandingApi.deleteAsset(kind, version),
+    onSuccess: (_, variables) => {
+      const assetsKey = tenantBrandingKeys.assets(variables.principalId, variables.tenantId);
+      queryClient.setQueryData<{ assets: TenantBrandingAsset[] }>(assetsKey, (current) => ({ assets: (current?.assets ?? []).filter((item) => item.kind !== variables.kind) }));
+      queryClient.removeQueries({ queryKey: tenantBrandingKeys.assetKind(variables.principalId, variables.tenantId, variables.kind) });
+      if (scope.current === `${variables.principalId}:${variables.tenantId}`) setAssetMessage(`${variables.kind === 'primary' ? 'Primary' : 'Compact'} logo removed.`);
+    },
+    onError: async (error, variables) => {
+      if (isVersionConflict(error)) await queryClient.invalidateQueries({ queryKey: tenantBrandingKeys.assets(variables.principalId, variables.tenantId), exact: true });
+    },
+  });
 
   const resetMutation = updateBranding.reset;
   useLayoutEffect(() => {
@@ -66,6 +142,8 @@ export default function TenantBrandingPage() {
     setVersion(0);
     setErrors({});
     setSuccess('');
+    setAssetMessage('');
+    setAssetValidationError('');
     resetMutation();
   }, [scopeKey, resetMutation]);
 
@@ -97,6 +175,28 @@ export default function TenantBrandingPage() {
     setForm(defaults);
     publish(defaults);
   };
+  const handleLogoUpload = (kind: TenantBrandingAssetKind, file: File, assetVersion: number) => {
+    setAssetMessage('');
+    setAssetValidationError('');
+    uploadAsset.reset();
+    deleteAsset.reset();
+    if (file.type !== 'image/png' && file.type !== 'image/jpeg') {
+      setAssetValidationError('Choose a PNG or JPEG image. SVG and animated formats are not accepted.');
+      return;
+    }
+    if (!file.size || file.size > MAX_LOGO_SIZE) {
+      setAssetValidationError('Logo files must be smaller than 900 KiB.');
+      return;
+    }
+    uploadAsset.mutate({ principalId, tenantId, kind, file, version: assetVersion });
+  };
+  const handleLogoDelete = (kind: TenantBrandingAssetKind, assetVersion: number) => {
+    setAssetMessage('');
+    setAssetValidationError('');
+    uploadAsset.reset();
+    deleteAsset.reset();
+    deleteAsset.mutate({ principalId, tenantId, kind, version: assetVersion });
+  };
 
   const mutationInScope = updateBranding.variables?.principalId === principalId && updateBranding.variables?.tenantId === tenantId;
   const pending = mutationInScope && updateBranding.isPending;
@@ -105,6 +205,18 @@ export default function TenantBrandingPage() {
       ? 'Branding changed elsewhere. The latest version has been loaded; review it and publish again.'
       : getErrorMessage(updateBranding.error)
     : '';
+  const assetMutation = uploadAsset.isError ? uploadAsset : deleteAsset;
+  const assetMutationInScope = assetMutation.variables?.principalId === principalId && assetMutation.variables?.tenantId === tenantId;
+  const assetMutationError = assetMutationInScope && assetMutation.isError
+    ? isVersionConflict(assetMutation.error)
+      ? 'This logo changed elsewhere. The latest asset version has been loaded; try again.'
+      : getErrorMessage(assetMutation.error)
+    : '';
+  const uploadInScope = uploadAsset.variables?.principalId === principalId && uploadAsset.variables?.tenantId === tenantId;
+  const deleteInScope = deleteAsset.variables?.principalId === principalId && deleteAsset.variables?.tenantId === tenantId;
+  const pendingKind = uploadAsset.isPending && uploadInScope ? uploadAsset.variables?.kind : deleteAsset.isPending && deleteInScope ? deleteAsset.variables?.kind : undefined;
+  const primaryAsset = assets.find((asset) => asset.kind === 'primary');
+  const compactAsset = assets.find((asset) => asset.kind === 'compact');
   const previewPrimary = /^#[0-9a-fA-F]{6}$/.test(form.primaryColor.trim()) ? form.primaryColor.trim() : '#0ea5e9';
   const previewAccent = /^#[0-9a-fA-F]{6}$/.test(form.accentColor.trim()) ? form.accentColor.trim() : '#a855f7';
   const previewFont = getBrandingFontStack(form.font) || 'Inter, system-ui, sans-serif';
@@ -120,6 +232,8 @@ export default function TenantBrandingPage() {
       {!canWrite && <Alert variant="info" className="flex items-start gap-2 p-4"><LockKeyhole className="mt-0.5 h-4 w-4 shrink-0" /><span><strong className="font-semibold">Read-only access.</strong> Owners and admins can publish branding.</span></Alert>}
       {success && <Alert variant="success" className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />{success}</Alert>}
       {mutationError && <Alert className="flex items-start gap-2"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />{mutationError}</Alert>}
+      {assetMessage && <Alert variant="success" className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />{assetMessage}</Alert>}
+      {(assetValidationError || assetMutationError) && <Alert className="flex items-start gap-2"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />{assetValidationError || assetMutationError}</Alert>}
 
       <section className="overflow-hidden rounded-2xl border border-dark-800 bg-dark-900/60">
         <div className="border-b border-dark-800 px-5 py-4 sm:px-6"><h2 className="font-semibold text-white">Theme tokens</h2><p className="mt-0.5 text-xs text-dark-500">Published version {version}. Empty fields inherit platform defaults.</p></div>
@@ -143,6 +257,13 @@ export default function TenantBrandingPage() {
           </form>
         )}
       </section>
+
+      {!isRootTenant && tenantId && (
+        <section className="overflow-hidden rounded-2xl border border-dark-800 bg-dark-900/60">
+          <div className="border-b border-dark-800 px-5 py-4 sm:px-6"><h2 className="font-semibold text-white">Restaurant logos</h2><p className="mt-0.5 text-xs text-dark-500">Private PNG or JPEG files, up to 900 KiB and 2048×2048 pixels. Public platform pages keep the platform logo.</p></div>
+          {assetsLoading ? <div className="space-y-4 p-5 sm:p-6" aria-label="Loading restaurant logos"><div className="h-28 animate-pulse rounded-xl bg-dark-800/70" /><div className="h-28 animate-pulse rounded-xl bg-dark-800/70" /></div> : assetsError ? <div className="px-6 py-10 text-center text-sm text-red-400">{getErrorMessage(assetsError)}</div> : <div className="space-y-4 p-5 sm:p-6"><LogoAssetCard kind="primary" title="Primary logo" description="Horizontal logo for the desktop workspace header." asset={primaryAsset} logoUrl={primaryLogoUrl} canWrite={canWrite} pending={pendingKind === 'primary'} onUpload={handleLogoUpload} onDelete={handleLogoDelete} /><LogoAssetCard kind="compact" title="Compact logo" description="Square logo for narrow layouts and compact identity slots." asset={compactAsset} logoUrl={compactLogoUrl} canWrite={canWrite} pending={pendingKind === 'compact'} onUpload={handleLogoUpload} onDelete={handleLogoDelete} /></div>}
+        </section>
+      )}
     </div>
   );
 }
