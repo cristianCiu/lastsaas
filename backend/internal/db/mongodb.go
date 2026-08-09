@@ -83,6 +83,19 @@ func (m *MongoDB) ensureIndexes() {
 			},
 		},
 		{
+			"tenant_branding",
+			[]mongo.IndexModel{
+				{Keys: bson.D{{Key: "tenantId", Value: 1}}, Options: options.Index().SetName("tenant_branding_tenant_unique").SetUnique(true)},
+			},
+		},
+		{
+			"tenant_branding_assets",
+			[]mongo.IndexModel{
+				{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "kind", Value: 1}}, Options: options.Index().SetName("tenant_branding_assets_tenant_kind_unique").SetUnique(true)},
+				{Keys: bson.D{{Key: "storageKey", Value: 1}}, Options: options.Index().SetName("tenant_branding_assets_storage_key_unique").SetUnique(true)},
+			},
+		},
+		{
 			"storage_areas",
 			[]mongo.IndexModel{
 				{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "locationId", Value: 1}, {Key: "name", Value: 1}}, Options: options.Index().SetName("storage_areas_tenant_location_name_unique").SetUnique(true)},
@@ -351,7 +364,7 @@ func (m *MongoDB) ensureIndexes() {
 		"api_keys": true, "config_vars": true, "stripe_mappings": true,
 		"custom_pages": true, "branding_assets": true, "webauthn_credentials": true,
 		"sso_connections": true, "auth_codes": true,
-		"tenant_memberships": true, "locations": true, "restaurant_settings": true, "storage_areas": true, "staff_profiles": true,
+		"tenant_memberships": true, "locations": true, "restaurant_settings": true, "tenant_branding": true, "tenant_branding_assets": true, "storage_areas": true, "staff_profiles": true,
 	}
 
 	for _, idx := range indexes {
@@ -477,6 +490,14 @@ func (m *MongoDB) WebhookDeliveries() *mongo.Collection {
 
 func (m *MongoDB) BrandingConfig() *mongo.Collection {
 	return m.Database.Collection("branding_config")
+}
+
+func (m *MongoDB) TenantBranding() *mongo.Collection {
+	return m.Database.Collection("tenant_branding")
+}
+
+func (m *MongoDB) TenantBrandingAssets() *mongo.Collection {
+	return m.Database.Collection("tenant_branding_assets")
 }
 
 func (m *MongoDB) BrandingAssets() *mongo.Collection {

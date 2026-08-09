@@ -73,6 +73,40 @@ func TestIntegrationRestaurantSchemasRejectMalformedDocuments(t *testing.T) {
 	}
 }
 
+func TestIntegrationTenantBrandingSchemaRejectsUnsafeTokens(t *testing.T) {
+	database, cleanup := testutil.MustConnectTestDB(t)
+	defer cleanup()
+	if err := database.EnsureSchemaValidation(); err != nil {
+		t.Fatalf("apply schema validation: %v", err)
+	}
+	now := time.Now()
+	base := bson.M{
+		"_id": primitive.NewObjectID(), "tenantId": primitive.NewObjectID(),
+		"primaryColor": "#123456", "accentColor": "", "font": "system",
+		"version": int64(1), "createdAt": now, "updatedAt": now,
+	}
+	unsafe := bson.M{}
+	for key, value := range base {
+		unsafe[key] = value
+	}
+	unsafe["primaryColor"] = "red; background: url(https://example.test)"
+	if _, err := database.TenantBranding().InsertOne(context.Background(), unsafe); err == nil {
+		t.Fatal("expected unsafe color token to be rejected")
+	}
+	unknownFont := bson.M{}
+	for key, value := range base {
+		unknownFont[key] = value
+	}
+	unknownFont["_id"] = primitive.NewObjectID()
+	unknownFont["font"] = "url-font"
+	if _, err := database.TenantBranding().InsertOne(context.Background(), unknownFont); err == nil {
+		t.Fatal("expected unknown font token to be rejected")
+	}
+	if _, err := database.TenantBranding().InsertOne(context.Background(), base); err != nil {
+		t.Fatalf("insert valid tenant branding: %v", err)
+	}
+}
+
 func TestIntegrationStaffProfileSchemaRejectsInvalidDocuments(t *testing.T) {
 	database, cleanup := testutil.MustConnectTestDB(t)
 	defer cleanup()

@@ -193,6 +193,37 @@ func TestValidate_StaffProfileStrictValuesAndScope(t *testing.T) {
 	}
 }
 
+func TestValidate_TenantBrandingTokens(t *testing.T) {
+	now := time.Now()
+	valid := models.TenantBranding{
+		TenantID: primitive.NewObjectID(), PrimaryColor: "#1a2b3c", AccentColor: "#abcdef",
+		Font: models.BrandingFontHumanist, Version: 1, CreatedAt: now, UpdatedAt: now,
+	}
+	if err := Validate(valid); err != nil {
+		t.Fatalf("valid tenant branding failed validation: %v", err)
+	}
+	for name, mutate := range map[string]func(*models.TenantBranding){
+		"uppercase color": func(branding *models.TenantBranding) { branding.PrimaryColor = "#AABBCC" },
+		"short color":     func(branding *models.TenantBranding) { branding.AccentColor = "#fff" },
+		"css payload":     func(branding *models.TenantBranding) { branding.PrimaryColor = "red; color: white" },
+		"unknown font":    func(branding *models.TenantBranding) { branding.Font = "custom-font" },
+	} {
+		t.Run(name, func(t *testing.T) {
+			branding := valid
+			mutate(&branding)
+			if err := Validate(branding); err == nil {
+				t.Fatal("expected validation error")
+			}
+		})
+	}
+	valid.PrimaryColor = ""
+	valid.AccentColor = ""
+	valid.Font = ""
+	if err := Validate(valid); err != nil {
+		t.Fatalf("inheritance defaults should be valid: %v", err)
+	}
+}
+
 func TestValidate_ValidAPIKey(t *testing.T) {
 	k := models.APIKey{
 		Name: "test-key", KeyHash: "hash", KeyPreview: "prev",

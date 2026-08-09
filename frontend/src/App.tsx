@@ -6,6 +6,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import { TenantProvider } from './contexts/TenantContext';
 import { BrandingProvider } from './contexts/BrandingContext';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { TenantBrandingProvider } from './contexts/TenantBrandingContext';
 import Layout from './components/Layout';
 import AdminLayout from './components/AdminLayout';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -39,6 +40,7 @@ import OnboardingPage from './pages/app/OnboardingPage';
 import LocationsPage from './features/locations/LocationsPage';
 import RestaurantSettingsPage from './features/restaurant-settings/RestaurantSettingsPage';
 import StorageAreasPage from './features/storage-areas/StorageAreasPage';
+import TenantBrandingPage from './features/tenant-branding/TenantBrandingPage';
 
 // Admin pages (lazy — only loaded by root tenant admins)
 const AdminDashboardPage = lazy(() => import('./pages/admin/DashboardPage'));
@@ -128,7 +130,8 @@ export default function App() {
           <AuthProvider>
             <ThemeProvider>
               <TenantProvider>
-                <BrowserRouter>
+                <TenantBrandingProvider>
+                  <BrowserRouter>
                   <ScrollToTop />
                   <BrandingThemeInjector />
                   <ErrorBoundary>
@@ -164,6 +167,7 @@ export default function App() {
                         <Route path="/settings" element={<SettingsPage />} />
                         <Route path="/settings/locations" element={<LocationsPage />} />
                         <Route path="/settings/restaurant" element={<RestaurantSettingsPage />} />
+                        <Route path="/settings/branding" element={<TenantBrandingPage />} />
                         <Route path="/settings/storage-areas" element={<StorageAreasPage />} />
                         <Route path="/activity" element={<ActivityPage />} />
                         <Route path="/test-entitlements" element={<TestEntitlementsPage />} />
@@ -207,7 +211,8 @@ export default function App() {
                       },
                     }}
                   />
-                </BrowserRouter>
+                  </BrowserRouter>
+                </TenantBrandingProvider>
               </TenantProvider>
             </ThemeProvider>
           </AuthProvider>

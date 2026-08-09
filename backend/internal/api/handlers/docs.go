@@ -320,6 +320,40 @@ func apiReference() []apiSection {
 			},
 		},
 		{
+			Title: "Tenant Branding",
+			Endpoints: []apiEndpoint{
+				{
+					Method: "GET", Path: "/api/product/branding", Summary: "Get restricted tenant branding",
+					Detail: "Returns safe theme tokens for a non-root restaurant tenant. Empty values inherit platform defaults. The response never includes platform HTML, CSS, scripts, navigation, or tenant identifiers.", Auth: "jwt+tenant",
+					Response: `{"branding":{"primaryColor":"#0ea5e9","accentColor":"#a855f7","font":"humanist","version":1,"createdAt":"...","updatedAt":"..."}}`,
+				},
+				{
+					Method: "PUT", Path: "/api/product/branding", Summary: "Replace restricted tenant branding",
+					Detail: "Requires owner or admin role and a complete body. Colors are empty or six-digit hex values; font is empty, system, humanist, geometric, or serif. Version 0 creates the initial record; stale writes return VERSION_CONFLICT. Empty tokens reset to platform defaults.", Auth: "admin",
+					Body:     `{"primaryColor":"#0ea5e9","accentColor":"#a855f7","font":"humanist","version":0}`,
+					Response: `{"branding":{"id":"...","primaryColor":"#0ea5e9","accentColor":"#a855f7","font":"humanist","version":1,"createdAt":"...","updatedAt":"..."}}`,
+				},
+				{
+					Method: "GET", Path: "/api/product/branding/assets", Summary: "List tenant logo metadata",
+					Detail: "Lists primary and compact logo metadata without returning binary data or internal storage keys.", Auth: "jwt+tenant",
+					Response: `{"assets":[{"id":"...","kind":"primary","contentType":"image/png","size":12000,"width":640,"height":160,"version":1,"createdAt":"...","updatedAt":"..."}]}`,
+				},
+				{
+					Method: "GET", Path: "/api/product/branding/assets/{kind}", Summary: "Get an authenticated tenant logo",
+					Detail: "Returns private PNG or JPEG bytes with a scoped ETag. The tenant comes from authenticated context; kind is primary or compact.", Auth: "jwt+tenant", Params: []apiParam{{"kind", "string", true, "primary or compact"}},
+				},
+				{
+					Method: "PUT", Path: "/api/product/branding/assets/{kind}", Summary: "Upload or replace a tenant logo",
+					Detail: "Accepts multipart fields file and version. Requires owner or admin role. PNG/JPEG signature, declared MIME, decoded dimensions (16-2048 pixels), and a 900 KiB limit are enforced. Version 0 creates an asset; stale replacements return VERSION_CONFLICT.", Auth: "admin", Params: []apiParam{{"kind", "string", true, "primary or compact"}},
+					Response: `{"asset":{"id":"...","kind":"primary","contentType":"image/png","size":12000,"width":640,"height":160,"version":1,"createdAt":"...","updatedAt":"..."}}`,
+				},
+				{
+					Method: "DELETE", Path: "/api/product/branding/assets/{kind}?version={version}", Summary: "Delete a tenant logo",
+					Detail: "Requires owner or admin role and the current asset version. Stale deletes return VERSION_CONFLICT.", Auth: "admin", Params: []apiParam{{"kind", "string", true, "primary or compact"}, {"version", "integer", true, "Current asset version"}},
+				},
+			},
+		},
+		{
 			Title: "Storage Areas",
 			Endpoints: []apiEndpoint{
 				{

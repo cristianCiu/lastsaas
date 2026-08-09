@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-Phase 1C: staff profiles and independent location authorization.
+Phase 1C: safe tenant and location branding.
 
 ## Completed
 
@@ -36,6 +36,11 @@ Phase 1C: staff profiles and independent location authorization.
 - Membership creation, invitation acceptance, removal, ownership transfer, account deletion, and administrative deletion keep staff profiles transactionally consistent.
 - Responsive Team management separates workspace roles from restaurant roles, supports location assignments and permission overrides, and scopes caches and mutations by principal and tenant.
 - Frontend verification now covers 43 tests across eleven files; lint, type-check, production build, and 16 Playwright smoke tests pass.
+- Restricted tenant branding supports optional canonical hex primary/accent colors, allowlisted font tokens, platform-default inheritance, strict schema validation, tenant isolation, optimistic concurrency, and auditable owner/admin updates.
+- Tenant branding is isolated from privileged platform HTML/CSS/script/navigation configuration, rejected for the root tenant, scoped in frontend caches by principal and tenant, and applied only to authenticated workspace routes.
+- Responsive branding self-service includes read-only access, live preview, publish, conflict recovery, and reset-to-platform behavior without accepting external asset URLs.
+- Authenticated tenant logo APIs use separate strict storage, random internal keys, tenant/kind uniqueness, optimistic versions, PNG/JPEG signature and MIME checks, decoded dimension limits, private ETags, owner/admin lifecycle operations, and tenant audit logs.
+- Frontend verification now covers 46 tests across thirteen files; lint, type-check, and the production build pass.
 
 ## Baseline Fixes
 
@@ -53,7 +58,7 @@ Phase 1C: staff profiles and independent location authorization.
 
 ## Active Task
 
-Implement tenant-safe restaurant branding and onboarding on top of the completed product authorization boundary before broader inventory master data.
+Connect tenant logo management and authenticated rendering in the frontend, then implement location overrides and restaurant onboarding before broader inventory master data.
 
 ## Known Follow-Ups
 

@@ -200,7 +200,7 @@ func CleanupCollections(t *testing.T, database *db.MongoDB) {
 		"system_nodes", "system_metrics", "financial_transactions",
 		"stripe_mappings", "counters", "daily_metrics", "webhook_events",
 		"leader_locks", "api_keys", "webhooks", "webhook_deliveries",
-		"branding_config", "branding_assets", "custom_pages",
+		"branding_config", "branding_assets", "tenant_branding", "tenant_branding_assets", "custom_pages",
 		"webauthn_credentials", "webauthn_sessions", "sso_connections",
 		"announcements", "usage_events", "rate_limits",
 		"locations", "restaurant_settings", "storage_areas",

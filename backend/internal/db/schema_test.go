@@ -52,7 +52,7 @@ func TestAllSchemasIncludesStrictLocationsSchema(t *testing.T) {
 }
 
 func TestRestaurantCollectionsUseStrictCriticalSchemas(t *testing.T) {
-	want := map[string]int{"restaurant_settings": 8, "storage_areas": 9}
+	want := map[string]int{"restaurant_settings": 8, "tenant_branding": 8, "storage_areas": 9}
 	for _, schema := range AllSchemas() {
 		requiredCount, ok := want[schema.Collection]
 		if !ok {
@@ -73,6 +73,15 @@ func TestRestaurantCollectionsUseStrictCriticalSchemas(t *testing.T) {
 			name := properties["name"].(bson.M)
 			if name["pattern"] != `.*\S.*` {
 				t.Errorf("storage area names must require non-whitespace: %#v", name)
+			}
+		}
+		if schema.Collection == "tenant_branding" {
+			properties := jsonSchema["properties"].(bson.M)
+			if properties["primaryColor"].(bson.M)["pattern"] != `^(?:|#[0-9a-f]{6})$` {
+				t.Errorf("tenant primary color must be empty or canonical hex")
+			}
+			if properties["font"].(bson.M)["enum"] == nil {
+				t.Errorf("tenant fonts must use an allowlist")
 			}
 		}
 		delete(want, schema.Collection)
@@ -102,5 +111,32 @@ func TestStaffProfilesSchemaIsStrictAndComplete(t *testing.T) {
 	}
 	if staff.Schema["$expr"] == nil {
 		t.Fatal("staff profile schema must enforce cross-field and override uniqueness rules")
+	}
+}
+
+func TestTenantBrandingAssetsSchemaIsStrictAndBounded(t *testing.T) {
+	var asset CollectionSchema
+	for _, schema := range AllSchemas() {
+		if schema.Collection == "tenant_branding_assets" {
+			asset = schema
+			break
+		}
+	}
+	if asset.Collection == "" || !asset.Critical || asset.ValidationLevel != "strict" {
+		t.Fatal("tenant_branding_assets must have a critical strict schema")
+	}
+	jsonSchema := asset.Schema["$jsonSchema"].(bson.M)
+	if jsonSchema["additionalProperties"].(bool) {
+		t.Fatal("tenant_branding_assets must reject additional properties")
+	}
+	if required := jsonSchema["required"].(bson.A); len(required) != 12 {
+		t.Fatalf("unexpected tenant branding asset required fields: %#v", required)
+	}
+	properties := jsonSchema["properties"].(bson.M)
+	if properties["data"].(bson.M)["bsonType"] != "binData" || properties["size"].(bson.M)["maximum"] != 921600 {
+		t.Fatal("tenant branding asset binary data must be size bounded")
+	}
+	if properties["kind"].(bson.M)["enum"] == nil || properties["contentType"].(bson.M)["enum"] == nil {
+		t.Fatal("tenant branding asset kinds and content types must use allowlists")
 	}
 }

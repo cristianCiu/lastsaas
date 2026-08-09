@@ -9,6 +9,7 @@ describe('WorkspaceSettingsNav', () => {
 
     expect(screen.getByRole('link', { name: 'Account' })).toHaveAttribute('href', '/settings');
     expect(screen.getByRole('link', { name: 'Restaurant' })).toHaveAttribute('href', '/settings/restaurant');
+    expect(screen.getByRole('link', { name: 'Branding' })).toHaveAttribute('href', '/settings/branding');
     expect(screen.getByRole('link', { name: 'Locations' })).toHaveAttribute('href', '/settings/locations');
     expect(screen.getByRole('link', { name: 'Storage areas' })).toHaveAttribute('href', '/settings/storage-areas');
     expect(screen.getByRole('link', { name: 'Account' })).not.toHaveAttribute('aria-current');

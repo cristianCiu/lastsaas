@@ -38,8 +38,50 @@ func AllSchemas() []CollectionSchema {
 		eventDefinitionsSchema(),
 		locationsSchema(),
 		restaurantSettingsSchema(),
+		tenantBrandingSchema(),
+		tenantBrandingAssetsSchema(),
 		storageAreasSchema(),
 		staffProfilesSchema(),
+	}
+}
+
+func tenantBrandingAssetsSchema() CollectionSchema {
+	return CollectionSchema{
+		Collection: "tenant_branding_assets", Critical: true, ValidationLevel: "strict",
+		Schema: bson.M{"$jsonSchema": bson.M{
+			"bsonType": "object", "additionalProperties": false,
+			"required": bson.A{"_id", "tenantId", "kind", "storageKey", "contentType", "data", "size", "width", "height", "version", "createdAt", "updatedAt"},
+			"properties": bson.M{
+				"_id": bson.M{"bsonType": "objectId"}, "tenantId": bson.M{"bsonType": "objectId"},
+				"kind":        bson.M{"bsonType": "string", "enum": bson.A{"primary", "compact"}},
+				"storageKey":  bson.M{"bsonType": "string", "pattern": `^[0-9a-f]{32}$`},
+				"contentType": bson.M{"bsonType": "string", "enum": bson.A{"image/png", "image/jpeg"}},
+				"data":        bson.M{"bsonType": "binData"},
+				"size":        bson.M{"bsonType": "long", "minimum": 1, "maximum": 921600},
+				"width":       bson.M{"bsonType": "int", "minimum": 16, "maximum": 2048},
+				"height":      bson.M{"bsonType": "int", "minimum": 16, "maximum": 2048},
+				"version":     bson.M{"bsonType": "long", "minimum": 1},
+				"createdAt":   bson.M{"bsonType": "date"}, "updatedAt": bson.M{"bsonType": "date"},
+			},
+		}},
+	}
+}
+
+func tenantBrandingSchema() CollectionSchema {
+	return CollectionSchema{
+		Collection: "tenant_branding", Critical: true, ValidationLevel: "strict",
+		Schema: bson.M{"$jsonSchema": bson.M{
+			"bsonType": "object", "additionalProperties": false,
+			"required": bson.A{"_id", "tenantId", "primaryColor", "accentColor", "font", "version", "createdAt", "updatedAt"},
+			"properties": bson.M{
+				"_id": bson.M{"bsonType": "objectId"}, "tenantId": bson.M{"bsonType": "objectId"},
+				"primaryColor": bson.M{"bsonType": "string", "pattern": `^(?:|#[0-9a-f]{6})$`},
+				"accentColor":  bson.M{"bsonType": "string", "pattern": `^(?:|#[0-9a-f]{6})$`},
+				"font":         bson.M{"bsonType": "string", "enum": bson.A{"", "system", "humanist", "geometric", "serif"}},
+				"version":      bson.M{"bsonType": "long", "minimum": 1},
+				"createdAt":    bson.M{"bsonType": "date"}, "updatedAt": bson.M{"bsonType": "date"},
+			},
+		}},
 	}
 }
 

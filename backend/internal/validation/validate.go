@@ -18,6 +18,7 @@ var (
 	locationCodePattern = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
 	currencyCodePattern = regexp.MustCompile(`^[A-Z]{3}$`)
 	languageTagPattern  = regexp.MustCompile(`^[a-z]{2}(?:-[A-Z]{2})?$`)
+	hexColorPattern     = regexp.MustCompile(`^#[0-9a-f]{6}$`)
 )
 
 func init() {
@@ -84,6 +85,15 @@ func init() {
 	})
 	v.RegisterValidation("staff_profile_status", func(fl validator.FieldLevel) bool {
 		return models.ValidStaffProfileStatus(models.StaffProfileStatus(fl.Field().String()))
+	})
+	v.RegisterValidation("hex_color", func(fl validator.FieldLevel) bool {
+		return hexColorPattern.MatchString(fl.Field().String())
+	})
+	v.RegisterValidation("branding_font", func(fl validator.FieldLevel) bool {
+		return models.ValidBrandingFont(models.BrandingFont(fl.Field().String()))
+	})
+	v.RegisterValidation("tenant_branding_asset_kind", func(fl validator.FieldLevel) bool {
+		return models.ValidTenantBrandingAssetKind(models.TenantBrandingAssetKind(fl.Field().String()))
 	})
 	v.RegisterValidation("iana_timezone", func(fl validator.FieldLevel) bool {
 		name := fl.Field().String()

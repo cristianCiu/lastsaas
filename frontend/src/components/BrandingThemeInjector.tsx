@@ -2,6 +2,8 @@ import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import DOMPurify from 'dompurify';
 import { useBranding } from '../contexts/BrandingContext';
+import { useTenantBranding } from '../contexts/TenantBrandingContext';
+import { getBrandingFontStack } from '../features/tenant-branding/validation';
 
 // Generates a full shade palette from a single hex color.
 // Uses HSL lightness shifting for a consistent palette.
@@ -60,22 +62,32 @@ const isValidHex = (c: string) => /^#[0-9a-fA-F]{6}$/.test(c);
 
 export default function BrandingThemeInjector() {
   const { branding, loaded } = useBranding();
+  const { branding: tenantBranding } = useTenantBranding();
   const location = useLocation();
   const isAdmin = location.pathname.startsWith('/last');
+  const isWorkspace = /^\/(dashboard|team|plan|buy-credits|billing|settings|activity|messages|onboarding)(?:\/|$)/.test(location.pathname);
 
   // Apply CSS custom properties for theme colors
   useEffect(() => {
     if (!loaded) return;
     const root = document.documentElement;
 
-    if (branding.primaryColor && isValidHex(branding.primaryColor)) {
-      const palette = generatePalette(branding.primaryColor);
+    const tenantTokens = isWorkspace && !isAdmin ? tenantBranding : null;
+    const primaryColor = tenantTokens?.primaryColor || branding.primaryColor;
+    if (primaryColor && isValidHex(primaryColor)) {
+      const palette = generatePalette(primaryColor);
       for (const [shade, color] of Object.entries(palette)) {
         root.style.setProperty(`--color-primary-${shade}`, color);
       }
     }
 
-    if (branding.fontFamily) {
+    if (tenantTokens?.accentColor && isValidHex(tenantTokens.accentColor)) {
+      root.style.setProperty('--color-accent-purple', tenantTokens.accentColor);
+    }
+    const tenantFont = tenantTokens ? getBrandingFontStack(tenantTokens.font) : '';
+    if (tenantFont) {
+      root.style.setProperty('--font-sans', tenantFont);
+    } else if (branding.fontFamily) {
       root.style.setProperty('--font-sans', `'${branding.fontFamily}', system-ui, -apple-system, sans-serif`);
     }
     if (branding.headingFont) {
@@ -89,8 +101,9 @@ export default function BrandingThemeInjector() {
       }
       root.style.removeProperty('--font-sans');
       root.style.removeProperty('--font-heading');
+      root.style.removeProperty('--color-accent-purple');
     };
-  }, [loaded, branding.primaryColor, branding.fontFamily, branding.headingFont]);
+  }, [loaded, branding.primaryColor, branding.fontFamily, branding.headingFont, tenantBranding, isAdmin, isWorkspace]);
 
   // Update page title
   useEffect(() => {
