@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -20,6 +21,11 @@ import (
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+)
+
+var (
+	packageDBMu sync.Mutex
+	packageDB   *db.MongoDB
 )
 
 // loadEnvTest loads the .env.test file into the process environment.
@@ -77,8 +83,14 @@ func MustConnectTestDB(t *testing.T) (*db.MongoDB, func()) {
 		t.Fatalf("testutil: REFUSING to run tests — database name %q does not contain 'test'. "+
 			"This safety guard prevents accidental use of production databases.", cfg.Database.Name)
 	}
+	cfg.Database.Name = packageTestDatabaseName(cfg.Database.Name)
 
-	database, err := db.NewMongoDB(cfg.Database.URI, cfg.Database.Name)
+	packageDBMu.Lock()
+	if packageDB == nil {
+		packageDB, err = connectTestDB(cfg.Database.URI, cfg.Database.Name)
+	}
+	database := packageDB
+	packageDBMu.Unlock()
 	if err != nil {
 		t.Fatalf("testutil: failed to connect to test database: %v", err)
 	}
@@ -93,7 +105,8 @@ func MustConnectTestDB(t *testing.T) (*db.MongoDB, func()) {
 		for _, name := range colls {
 			database.Database.Collection(name).DeleteMany(ctx, bson.M{})
 		}
-		database.Close(ctx)
+		// Keep the client alive for subsequent tests in this package process.
+		// The Go test process closes all sockets on exit.
 	}
 
 	return database, cleanup
@@ -119,8 +132,9 @@ func ConnectTestDB() (*db.MongoDB, func()) {
 	if !strings.Contains(strings.ToLower(cfg.Database.Name), "test") {
 		log.Fatalf("testutil: REFUSING to run tests — database name %q does not contain 'test'", cfg.Database.Name)
 	}
+	cfg.Database.Name = packageTestDatabaseName(cfg.Database.Name)
 
-	database, err := db.NewMongoDB(cfg.Database.URI, cfg.Database.Name)
+	database, err := connectTestDB(cfg.Database.URI, cfg.Database.Name)
 	if err != nil {
 		log.Fatalf("testutil: failed to connect to test database: %v", err)
 	}
@@ -136,6 +150,43 @@ func ConnectTestDB() (*db.MongoDB, func()) {
 	}
 
 	return database, cleanup
+}
+
+// packageTestDatabaseName isolates packages because `go test ./...` executes
+// package binaries concurrently. Without this suffix, one package's cleanup
+// can delete another package's fixtures from the shared Atlas test database.
+func packageTestDatabaseName(base string) string {
+	wd, err := os.Getwd()
+	if err != nil {
+		wd = "unknown-package"
+	}
+	packageName := filepath.Base(wd)
+	packageName = strings.Map(func(r rune) rune {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {
+			return r
+		}
+		return '-'
+	}, packageName)
+	suffix := "-" + packageName
+	if len(base)+len(suffix) > 63 {
+		base = base[:63-len(suffix)]
+	}
+	return base + suffix
+}
+
+func connectTestDB(uri, name string) (*db.MongoDB, error) {
+	var lastErr error
+	for attempt := 0; attempt < 3; attempt++ {
+		database, err := db.NewMongoDB(uri, name)
+		if err == nil {
+			return database, nil
+		}
+		lastErr = err
+		if attempt < 2 {
+			time.Sleep(time.Duration(attempt+1) * time.Second)
+		}
+	}
+	return nil, lastErr
 }
 
 // findAndSetConfigDir sets LASTSAAS_CONFIG_DIR without requiring *testing.T.

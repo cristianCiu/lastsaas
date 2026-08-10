@@ -41,6 +41,9 @@ func NewMongoDB(uri, database string) (*MongoDB, error) {
 	}
 
 	if err := client.Ping(ctx, nil); err != nil {
+		disconnectCtx, disconnectCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer disconnectCancel()
+		_ = client.Disconnect(disconnectCtx)
 		return nil, fmt.Errorf("failed to ping MongoDB: %w", err)
 	}
 

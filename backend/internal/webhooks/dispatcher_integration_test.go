@@ -44,8 +44,7 @@ func TestDispatcherEmitAndDeliver(t *testing.T) {
 		Data:      map[string]interface{}{"tenantId": "test123"},
 	})
 
-	// Wait for async dispatch
-	time.Sleep(500 * time.Millisecond)
+	d.waitForEmits()
 
 	if received.Load() != 1 {
 		t.Errorf("expected 1 delivery, got %d", received.Load())
@@ -73,7 +72,7 @@ func TestDispatcherEmitUnmappedEvent(t *testing.T) {
 		Data:      map[string]interface{}{},
 	})
 
-	time.Sleep(200 * time.Millisecond)
+	d.waitForEmits()
 
 	count := testutil.CountDocuments(t, database, "webhook_deliveries", nil)
 	if count != 0 {
@@ -106,7 +105,7 @@ func TestDispatcherSignature(t *testing.T) {
 		Data:      map[string]interface{}{"email": "new@example.com"},
 	})
 
-	time.Sleep(500 * time.Millisecond)
+	d.waitForEmits()
 
 	if gotSignature == "" {
 		t.Error("expected non-empty signature header")
@@ -147,7 +146,7 @@ func TestDispatcherEncryptedSecret(t *testing.T) {
 		Data:      map[string]interface{}{"amount": 1000},
 	})
 
-	time.Sleep(500 * time.Millisecond)
+	d.waitForEmits()
 
 	if gotSignature == "" {
 		t.Error("expected non-empty signature header with encrypted secret")
@@ -179,8 +178,7 @@ func TestDispatcherRetryOnFailure(t *testing.T) {
 		Data:      map[string]interface{}{},
 	})
 
-	// Wait for initial delivery
-	time.Sleep(500 * time.Millisecond)
+	d.waitForEmits()
 
 	if attempts.Load() < 1 {
 		t.Error("expected at least 1 attempt")
@@ -286,7 +284,7 @@ func TestDispatcherNoMatchingWebhooks(t *testing.T) {
 		Data:      map[string]interface{}{"email": "new@example.com"},
 	})
 
-	time.Sleep(500 * time.Millisecond)
+	d.waitForEmits()
 
 	// No deliveries should be recorded because the webhook doesn't subscribe to user.registered
 	count := testutil.CountDocuments(t, database, "webhook_deliveries", nil)

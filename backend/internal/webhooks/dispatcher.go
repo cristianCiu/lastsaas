@@ -11,6 +11,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"sync"
 	"time"
 
 	"lastsaas/internal/db"
@@ -39,6 +40,7 @@ type Dispatcher struct {
 	stopped       chan struct{}
 	encryptionKey []byte        // AES-256 key for webhook secret encryption (nil = plaintext fallback)
 	emitSem       chan struct{} // bounds concurrent Emit goroutines
+	emitWG        sync.WaitGroup
 }
 
 const maxRetryWorkers = 5
@@ -69,6 +71,7 @@ func (d *Dispatcher) EncryptionKey() []byte {
 func (d *Dispatcher) Stop() {
 	close(d.stopCh)
 	<-d.stopped
+	d.emitWG.Wait()
 }
 
 // retryWorker processes delayed retry jobs with bounded concurrency.
@@ -120,7 +123,9 @@ func (d *Dispatcher) Emit(event events.Event) {
 	// Acquire semaphore to bound concurrent dispatch goroutines
 	select {
 	case d.emitSem <- struct{}{}:
+		d.emitWG.Add(1)
 		go func() {
+			defer d.emitWG.Done()
 			defer func() { <-d.emitSem }()
 			defer func() {
 				if r := recover(); r != nil {
@@ -132,6 +137,12 @@ func (d *Dispatcher) Emit(event events.Event) {
 	default:
 		slog.Warn("webhooks: emit semaphore full, dropping dispatch", "event_type", eventType)
 	}
+}
+
+// waitForEmits blocks until dispatches accepted before this call complete.
+// It is used by integration tests to avoid timing assumptions around MongoDB.
+func (d *Dispatcher) waitForEmits() {
+	d.emitWG.Wait()
 }
 
 // mapEventType converts from events.EventType to models.WebhookEventType.

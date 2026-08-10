@@ -50,10 +50,10 @@ Phase 1C: safe tenant and location branding.
 - Added frontend test, lint, and build jobs to CI.
 - Fixed the Dockerfile to consume a committed non-secret production template and listen on port 8080.
 - Installed the Playwright Chromium version matching the locked frontend dependency; all 16 existing browser tests pass.
+- Stabilized Atlas-backed suites with package-isolated databases, per-package client reuse, bounded connection retries, and deterministic webhook dispatch synchronization.
 
 ## Blocked External Verification
 
-- The complete legacy Atlas suite is currently intermittent because the free replica set temporarily reports no primary or times out during connection checkout after repeated connection churn. Location, restaurant settings, storage area, and schema integration suites pass independently when Atlas is available; Stripe also passes independently. This is tracked separately from deterministic code failures.
 - Authenticated Playwright flows require a running, seeded backend and stable test database.
 - Container build verification requires Docker/WSL integration, which is not currently available.
 
