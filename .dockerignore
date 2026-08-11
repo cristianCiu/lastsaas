@@ -1,5 +1,6 @@
 .env
-.env.local
+.env.*
+!.env.example
 .git
 .gitignore
 .idea
@@ -12,6 +13,7 @@ backend/lastsaas-server
 backend/server
 backend/vendor
 backend/config/dev.yaml
+backend/config/prod.yaml
 frontend/node_modules
 frontend/dist
 bin
