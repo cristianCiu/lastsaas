@@ -1,5 +1,25 @@
 # LastSaaS Version Notes
 
+## v1.5.0 — August 11, 2026
+
+### Guided Restaurant Onboarding
+- **Tenant-scoped resumable setup** (`aec363f`) — restaurant company name/defaults and the first active location are persisted independently, server status reconstructs progress, and only owners can complete the audited, idempotent workflow.
+- **Safe route enforcement** — incomplete owners enter onboarding automatically, completed owners cannot re-enter it, root/member workspaces bypass it, and plan/billing recovery remains accessible even when billing is inactive.
+- **Failure-safe identity provisioning** — password and OAuth registration no longer issue sessions after failed tenant/membership/staff-profile provisioning; partial user records are removed.
+
+### Entitlement And Isolation Hardening
+- Known plan contracts require numeric `max_locations >= 1` and boolean `location_branding`; malformed entitlement types no longer pass boolean feature checks.
+- Plan downgrades preserve location-branding records but exclude them from resolved workspace branding until the entitlement is restored.
+- Location-branding ETags include location, override, tenant-branding, and entitlement state; tenant-branding changes invalidate resolved location caches.
+- Product mutations require active staff profiles, and location updates enforce assigned-location access with non-leaking not-found behavior.
+
+### Verification
+- All 64 frontend tests across 20 files pass with lint, type-check, and production build.
+- All Atlas-backed backend packages pass, including authenticated onboarding, entitlement allow/deny/downgrade, staff assignment/status, audit idempotency, and cross-tenant isolation coverage.
+- The config unit package passes with the external `SERVER_PORT` test override unset; authenticated live-browser verification still requires a running seeded backend.
+
+---
+
 ## v1.4.0 — August 11, 2026
 
 ### Restaurant Location Branding

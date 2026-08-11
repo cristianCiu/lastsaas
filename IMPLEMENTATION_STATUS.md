@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-Phase 1D: restaurant onboarding and Phase 1 end-to-end hardening.
+Phase 2: master data and import foundation.
 
 ## Completed
 
@@ -46,6 +46,14 @@ Phase 1D: restaurant onboarding and Phase 1 end-to-end hardening.
 - Location branding frontend resolution is scoped by principal, tenant, and active location; resolved colors/fonts drive authenticated workspace themes while location display names drive visible workspace identity.
 - Responsive location-branding self-service supports inheritance previews, assigned-location context, normalized safe overrides, optimistic publish/reset operations, conflict recovery, read-only/root/empty/error states, and race-isolated cache updates.
 - Frontend verification now covers 57 tests across eighteen files; lint, type-check, and the production build pass.
+- Tenant-scoped restaurant onboarding persists company defaults and the first active location before idempotent owner completion; progress is reconstructed from the database and incomplete owners resume at the correct step.
+- Onboarding route enforcement keeps root/member workspaces out, redirects incomplete owners, allows plan and billing recovery routes, and fails closed when setup status cannot be loaded.
+- Registration and OAuth workspace provisioning now propagate transaction failures and remove partial users instead of issuing authenticated orphan accounts.
+- Known restaurant plan entitlements enforce exact contracts: `max_locations` is numeric and at least one, while `location_branding` is strictly boolean and malformed values fail closed.
+- Location branding plan downgrades preserve stored overrides but remove them from effective resolution; ETags now include location, branding, tenant branding, and entitlement state.
+- Product settings and location mutations require active staff profiles; location updates additionally require assigned-location access and preserve indistinguishable not-found isolation.
+- Authenticated Atlas coverage proves tenant-scoped onboarding, ordinary-plan branding allow/deny/downgrade behavior, restricted/inactive staff denial, and unchanged cross-tenant resources.
+- Frontend verification now covers 64 tests across twenty files; lint, type-check, and the production build pass.
 
 ## Baseline Fixes
 
@@ -63,7 +71,7 @@ Phase 1D: restaurant onboarding and Phase 1 end-to-end hardening.
 
 ## Active Task
 
-Implement guided restaurant onboarding, complete Phase 1 entitlement and authenticated end-to-end isolation coverage, then begin inventory master data.
+Implement Phase 2 fixed-point units, categories, item master data, supplier purchasing terms, and the idempotent CSV import foundation.
 
 ## Known Follow-Ups
 

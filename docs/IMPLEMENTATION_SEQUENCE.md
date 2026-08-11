@@ -49,6 +49,6 @@ Exit requires green non-database gates. Database integration and E2E gates must 
 4. Split platform branding from authenticated tenant/location branding in the frontend.
 5. Add restaurant onboarding after locations, permissions, and branding APIs are stable.
 
-Steps 1-4 are complete in v1.4.0. Step 5 is the active task and the final implementation slice before the Phase 1 end-to-end exit gate.
+Steps 1-4 are complete in v1.4.0. Step 5 and the Phase 1 entitlement/isolation hardening are complete in v1.5.0.
 
-Later phases continue in `WARENWIRTSCHAFT_SAAS_BAUPLAN.md`, preserving the order: master data, inventory journal, recipes/sales, purchasing, forecasting, then pilot hardening.
+Phase 2 is active. Later phases continue in `WARENWIRTSCHAFT_SAAS_BAUPLAN.md`, preserving the order: master data, inventory journal, recipes/sales, purchasing, forecasting, then pilot hardening.
