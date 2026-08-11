@@ -52,7 +52,7 @@ func TestAllSchemasIncludesStrictLocationsSchema(t *testing.T) {
 }
 
 func TestRestaurantCollectionsUseStrictCriticalSchemas(t *testing.T) {
-	want := map[string]int{"restaurant_settings": 8, "tenant_branding": 8, "storage_areas": 9}
+	want := map[string]int{"restaurant_settings": 8, "tenant_branding": 8, "location_branding": 10, "storage_areas": 9}
 	for _, schema := range AllSchemas() {
 		requiredCount, ok := want[schema.Collection]
 		if !ok {
@@ -75,7 +75,7 @@ func TestRestaurantCollectionsUseStrictCriticalSchemas(t *testing.T) {
 				t.Errorf("storage area names must require non-whitespace: %#v", name)
 			}
 		}
-		if schema.Collection == "tenant_branding" {
+		if schema.Collection == "tenant_branding" || schema.Collection == "location_branding" {
 			properties := jsonSchema["properties"].(bson.M)
 			if properties["primaryColor"].(bson.M)["pattern"] != `^(?:|#[0-9a-f]{6})$` {
 				t.Errorf("tenant primary color must be empty or canonical hex")

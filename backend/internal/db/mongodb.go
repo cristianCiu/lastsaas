@@ -92,6 +92,12 @@ func (m *MongoDB) ensureIndexes() {
 			},
 		},
 		{
+			"location_branding",
+			[]mongo.IndexModel{
+				{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "locationId", Value: 1}}, Options: options.Index().SetName("location_branding_tenant_location_unique").SetUnique(true)},
+			},
+		},
+		{
 			"tenant_branding_assets",
 			[]mongo.IndexModel{
 				{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "kind", Value: 1}}, Options: options.Index().SetName("tenant_branding_assets_tenant_kind_unique").SetUnique(true)},
@@ -367,7 +373,7 @@ func (m *MongoDB) ensureIndexes() {
 		"api_keys": true, "config_vars": true, "stripe_mappings": true,
 		"custom_pages": true, "branding_assets": true, "webauthn_credentials": true,
 		"sso_connections": true, "auth_codes": true,
-		"tenant_memberships": true, "locations": true, "restaurant_settings": true, "tenant_branding": true, "tenant_branding_assets": true, "storage_areas": true, "staff_profiles": true,
+		"tenant_memberships": true, "locations": true, "restaurant_settings": true, "tenant_branding": true, "location_branding": true, "tenant_branding_assets": true, "storage_areas": true, "staff_profiles": true,
 	}
 
 	for _, idx := range indexes {
@@ -497,6 +503,10 @@ func (m *MongoDB) BrandingConfig() *mongo.Collection {
 
 func (m *MongoDB) TenantBranding() *mongo.Collection {
 	return m.Database.Collection("tenant_branding")
+}
+
+func (m *MongoDB) LocationBranding() *mongo.Collection {
+	return m.Database.Collection("location_branding")
 }
 
 func (m *MongoDB) TenantBrandingAssets() *mongo.Collection {

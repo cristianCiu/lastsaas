@@ -49,6 +49,9 @@ func RegisterRoutes(guarded *mux.Router, database *db.MongoDB, auth *middleware.
 	productAPI.Handle("/staff-profiles/{userId}", withProductMiddleware(http.HandlerFunc(handler.replaceStaffProfile), requireProfile, requireCoreRole(models.RoleAdmin))).Methods(http.MethodPut)
 
 	requireLocation := RequireAuthorizedLocation(database, "locationId")
+	productAPI.Handle("/locations/{locationId}/branding", withProductMiddleware(http.HandlerFunc(handler.getLocationBranding), requireProfile, requireLocation)).Methods(http.MethodGet)
+	productAPI.Handle("/locations/{locationId}/branding", withProductMiddleware(http.HandlerFunc(handler.putLocationBranding), requireProfile, requireLocation, requireCoreRole(models.RoleAdmin), middleware.RequireEntitlement(database, "location_branding"))).Methods(http.MethodPut)
+	productAPI.Handle("/locations/{locationId}/branding", withProductMiddleware(http.HandlerFunc(handler.deleteLocationBranding), requireProfile, requireLocation, requireCoreRole(models.RoleAdmin), middleware.RequireEntitlement(database, "location_branding"))).Methods(http.MethodDelete)
 	productAPI.Handle("/locations/{locationId}/storage-areas", withProductMiddleware(http.HandlerFunc(handler.listStorageAreas), requireProfile, requireLocation, RequireBusinessPermission(models.PermissionStorageAreasRead))).Methods(http.MethodGet)
 	productAPI.Handle("/locations/{locationId}/storage-areas", withProductMiddleware(http.HandlerFunc(handler.createStorageArea), requireProfile, requireLocation, RequireBusinessPermission(models.PermissionStorageAreasManage))).Methods(http.MethodPost)
 	productAPI.Handle("/locations/{locationId}/storage-areas/{storageAreaId}", withProductMiddleware(http.HandlerFunc(handler.updateStorageArea), requireProfile, requireLocation, RequireBusinessPermission(models.PermissionStorageAreasManage))).Methods(http.MethodPatch)

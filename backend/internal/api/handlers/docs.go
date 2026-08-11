@@ -354,6 +354,29 @@ func apiReference() []apiSection {
 			},
 		},
 		{
+			Title: "Location Branding",
+			Endpoints: []apiEndpoint{
+				{
+					Method: "GET", Path: "/api/product/locations/{locationId}/branding", Summary: "Get location branding and resolved fallback",
+					Detail: "Returns the raw location override and deterministic location-to-tenant-to-platform resolution. Requires an active staff profile assigned to the location. The response identifies each field source, carries location and tenant branding versions, and uses a private ETag.", Auth: "staff location",
+					Params:   []apiParam{{"locationId", "ObjectID", true, "The assigned tenant location ID"}},
+					Response: `{"branding":{"displayName":"Flagship","primaryColor":"#0ea5e9","accentColor":"","font":"","version":1},"resolved":{"locationId":"...","displayName":"Flagship","primaryColor":"#0ea5e9","accentColor":"#a855f7","font":"humanist","locationBrandingVersion":1,"tenantBrandingVersion":2,"sources":{"displayName":"location_branding","primaryColor":"location_branding","accentColor":"tenant","font":"tenant"}}}`,
+				},
+				{
+					Method: "PUT", Path: "/api/product/locations/{locationId}/branding", Summary: "Replace location branding overrides",
+					Detail: "Requires owner or admin role, assigned-location access, and the location_branding entitlement. Safe display name, canonical colors, and allowlisted font values are accepted. Version 0 creates the override; stale writes return VERSION_CONFLICT.", Auth: "admin+entitlement",
+					Params:   []apiParam{{"locationId", "ObjectID", true, "The assigned tenant location ID"}},
+					Body:     `{"displayName":"Flagship","primaryColor":"#0ea5e9","accentColor":"","font":"","version":0}`,
+					Response: `{"branding":{"id":"...","displayName":"Flagship","primaryColor":"#0ea5e9","accentColor":"","font":"","version":1,"createdAt":"...","updatedAt":"..."}}`,
+				},
+				{
+					Method: "DELETE", Path: "/api/product/locations/{locationId}/branding?version={version}", Summary: "Reset location branding to tenant defaults",
+					Detail: "Requires owner or admin role, assigned-location access, the location_branding entitlement, and the current override version. Deleting only removes the location override; tenant and platform branding remain unchanged.", Auth: "admin+entitlement",
+					Params: []apiParam{{"locationId", "ObjectID", true, "The assigned tenant location ID"}, {"version", "integer", true, "Current location branding version"}},
+				},
+			},
+		},
+		{
 			Title: "Storage Areas",
 			Endpoints: []apiEndpoint{
 				{

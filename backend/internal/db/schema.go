@@ -39,9 +39,29 @@ func AllSchemas() []CollectionSchema {
 		locationsSchema(),
 		restaurantSettingsSchema(),
 		tenantBrandingSchema(),
+		locationBrandingSchema(),
 		tenantBrandingAssetsSchema(),
 		storageAreasSchema(),
 		staffProfilesSchema(),
+	}
+}
+
+func locationBrandingSchema() CollectionSchema {
+	return CollectionSchema{
+		Collection: "location_branding", Critical: true, ValidationLevel: "strict",
+		Schema: bson.M{"$jsonSchema": bson.M{
+			"bsonType": "object", "additionalProperties": false,
+			"required": bson.A{"_id", "tenantId", "locationId", "displayName", "primaryColor", "accentColor", "font", "version", "createdAt", "updatedAt"},
+			"properties": bson.M{
+				"_id": bson.M{"bsonType": "objectId"}, "tenantId": bson.M{"bsonType": "objectId"}, "locationId": bson.M{"bsonType": "objectId"},
+				"displayName":  bson.M{"bsonType": "string", "maxLength": 200},
+				"primaryColor": bson.M{"bsonType": "string", "pattern": `^(?:|#[0-9a-f]{6})$`},
+				"accentColor":  bson.M{"bsonType": "string", "pattern": `^(?:|#[0-9a-f]{6})$`},
+				"font":         bson.M{"bsonType": "string", "enum": bson.A{"", "system", "humanist", "geometric", "serif"}},
+				"version":      bson.M{"bsonType": "long", "minimum": 1},
+				"createdAt":    bson.M{"bsonType": "date"}, "updatedAt": bson.M{"bsonType": "date"},
+			},
+		}},
 	}
 }
 

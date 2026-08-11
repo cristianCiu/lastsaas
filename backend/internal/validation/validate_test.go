@@ -224,6 +224,31 @@ func TestValidate_TenantBrandingTokens(t *testing.T) {
 	}
 }
 
+func TestValidate_LocationBrandingTokens(t *testing.T) {
+	now := time.Now()
+	valid := models.LocationBranding{
+		TenantID: primitive.NewObjectID(), LocationID: primitive.NewObjectID(), DisplayName: "Flagship",
+		PrimaryColor: "#aabbcc", AccentColor: "", Font: models.BrandingFontSerif,
+		Version: 1, CreatedAt: now, UpdatedAt: now,
+	}
+	if err := Validate(&valid); err != nil {
+		t.Fatalf("valid location branding rejected: %v", err)
+	}
+	for name, mutate := range map[string]func(*models.LocationBranding){
+		"oversized name": func(branding *models.LocationBranding) { branding.DisplayName = strings.Repeat("x", 201) },
+		"unsafe color":   func(branding *models.LocationBranding) { branding.PrimaryColor = "red;display:none" },
+		"unknown font":   func(branding *models.LocationBranding) { branding.Font = "remote" },
+	} {
+		t.Run(name, func(t *testing.T) {
+			candidate := valid
+			mutate(&candidate)
+			if err := Validate(&candidate); err == nil {
+				t.Fatal("expected validation error")
+			}
+		})
+	}
+}
+
 func TestValidate_ValidAPIKey(t *testing.T) {
 	k := models.APIKey{
 		Name: "test-key", KeyHash: "hash", KeyPreview: "prev",

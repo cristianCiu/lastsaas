@@ -51,6 +51,7 @@ Phase 1C: safe tenant and location branding.
 - Fixed the Dockerfile to consume a committed non-secret production template and listen on port 8080.
 - Installed the Playwright Chromium version matching the locked frontend dependency; all 16 existing browser tests pass.
 - Stabilized Atlas-backed suites with package-isolated databases, per-package client reuse, bounded connection retries, and deterministic webhook dispatch synchronization.
+- Location branding backend supports strict safe overrides, assigned-location authorization, entitlement-gated owner/admin writes, optimistic concurrency, reset audit, private ETags, and deterministic location-to-tenant-to-platform resolution.
 
 ## Blocked External Verification
 
@@ -59,7 +60,7 @@ Phase 1C: safe tenant and location branding.
 
 ## Active Task
 
-Implement safe location branding overrides and deterministic location-to-tenant-to-platform resolution, then restaurant onboarding before broader inventory master data.
+Connect resolved location branding to the authenticated frontend and add location-branding self-service, then implement restaurant onboarding before broader inventory master data.
 
 ## Known Follow-Ups
 

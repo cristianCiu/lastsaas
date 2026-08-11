@@ -107,6 +107,40 @@ func TestIntegrationTenantBrandingSchemaRejectsUnsafeTokens(t *testing.T) {
 	}
 }
 
+func TestIntegrationLocationBrandingSchemaRejectsUnsafeTokens(t *testing.T) {
+	database, cleanup := testutil.MustConnectTestDB(t)
+	defer cleanup()
+	if err := database.EnsureSchemaValidation(); err != nil {
+		t.Fatalf("apply schema validation: %v", err)
+	}
+	now := time.Now()
+	base := bson.M{
+		"_id": primitive.NewObjectID(), "tenantId": primitive.NewObjectID(), "locationId": primitive.NewObjectID(),
+		"displayName": "Flagship", "primaryColor": "#123456", "accentColor": "", "font": "system",
+		"version": int64(1), "createdAt": now, "updatedAt": now,
+	}
+	unsafe := bson.M{}
+	for key, value := range base {
+		unsafe[key] = value
+	}
+	unsafe["primaryColor"] = "var(--remote-color)"
+	if _, err := database.LocationBranding().InsertOne(context.Background(), unsafe); err == nil {
+		t.Fatal("expected unsafe location color token to be rejected")
+	}
+	unknown := bson.M{}
+	for key, value := range base {
+		unknown[key] = value
+	}
+	unknown["_id"] = primitive.NewObjectID()
+	unknown["script"] = "alert(1)"
+	if _, err := database.LocationBranding().InsertOne(context.Background(), unknown); err == nil {
+		t.Fatal("expected additional location branding fields to be rejected")
+	}
+	if _, err := database.LocationBranding().InsertOne(context.Background(), base); err != nil {
+		t.Fatalf("insert valid location branding: %v", err)
+	}
+}
+
 func TestIntegrationStaffProfileSchemaRejectsInvalidDocuments(t *testing.T) {
 	database, cleanup := testutil.MustConnectTestDB(t)
 	defer cleanup()
