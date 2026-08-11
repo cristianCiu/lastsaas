@@ -197,10 +197,19 @@ func (h *productHandler) getLocationBranding(w http.ResponseWriter, r *http.Requ
 		apierror.Internal(w, r, "Failed to resolve location branding")
 		return
 	}
-	resolved := resolveLocationBranding(location, tenantBranding, override)
-	w.Header().Set("ETag", fmt.Sprintf(`"location-branding-%d-tenant-branding-%d"`, override.Version, tenantBranding.Version))
+	entitled, err := middleware.HasBooleanEntitlement(r.Context(), h.db, tenant, "location_branding")
+	if err != nil {
+		apierror.Internal(w, r, "Failed to resolve location branding entitlement")
+		return
+	}
+	overrideForResolution := override
+	if !entitled {
+		overrideForResolution = &models.LocationBranding{}
+	}
+	resolved := resolveLocationBranding(location, tenantBranding, overrideForResolution)
+	w.Header().Set("ETag", fmt.Sprintf(`"location-%d-location-branding-%d-tenant-branding-%d-entitled-%t"`, location.Version, override.Version, tenantBranding.Version, entitled))
 	w.Header().Set("Cache-Control", "private, no-cache")
-	writeJSON(w, http.StatusOK, map[string]any{"branding": override, "resolved": resolved})
+	writeJSON(w, http.StatusOK, map[string]any{"branding": override, "resolved": resolved, "entitled": entitled})
 }
 
 func (h *productHandler) putLocationBranding(w http.ResponseWriter, r *http.Request) {

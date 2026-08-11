@@ -72,7 +72,7 @@ func (h *PlansHandler) ListPlans(w http.ResponseWriter, r *http.Request) {
 		for aggCursor.Next(ctx) {
 			var row struct {
 				ID    primitive.ObjectID `bson:"_id"`
-				Count int               `bson:"count"`
+				Count int                `bson:"count"`
 			}
 			if aggCursor.Decode(&row) == nil {
 				subCounts[row.ID] = row.Count
@@ -227,6 +227,16 @@ func validatePlanRequest(req *planRequest) error {
 	for k, v := range req.Entitlements {
 		if v.Type != models.EntitlementTypeBool && v.Type != models.EntitlementTypeNumeric {
 			return fmt.Errorf("entitlement %q has invalid type %q", k, v.Type)
+		}
+		switch k {
+		case "max_locations":
+			if v.Type != models.EntitlementTypeNumeric || v.NumericValue < 1 {
+				return fmt.Errorf("entitlement %q must be numeric and at least 1", k)
+			}
+		case "location_branding":
+			if v.Type != models.EntitlementTypeBool {
+				return fmt.Errorf("entitlement %q must be boolean", k)
+			}
 		}
 	}
 	return nil
@@ -756,19 +766,19 @@ func (h *PlansHandler) ListPlansPublic(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondWithJSON(w, http.StatusOK, map[string]interface{}{
-		"plans":                      plans,
-		"currentPlanId":              currentPlanID,
-		"billingWaived":              tenant.BillingWaived,
-		"tenantSubscriptionCredits":  tenant.SubscriptionCredits,
-		"tenantPurchasedCredits":     tenant.PurchasedCredits,
-		"billingStatus":              tenant.BillingStatus,
-		"billingInterval":            tenant.BillingInterval,
-		"currentPeriodEnd":           tenant.CurrentPeriodEnd,
-		"canceledAt":                 tenant.CanceledAt,
-		"currentPlanUserLimit":       currentPlanUserLimit,
-		"maxPlanUserLimit":           maxPlanUserLimit,
-		"upgradePromptTitle":                h.configStore.Get("team.upgrade_prompt.title"),
-		"upgradePromptBody":                 h.configStore.Get("team.upgrade_prompt.body"),
+		"plans":                               plans,
+		"currentPlanId":                       currentPlanID,
+		"billingWaived":                       tenant.BillingWaived,
+		"tenantSubscriptionCredits":           tenant.SubscriptionCredits,
+		"tenantPurchasedCredits":              tenant.PurchasedCredits,
+		"billingStatus":                       tenant.BillingStatus,
+		"billingInterval":                     tenant.BillingInterval,
+		"currentPeriodEnd":                    tenant.CurrentPeriodEnd,
+		"canceledAt":                          tenant.CanceledAt,
+		"currentPlanUserLimit":                currentPlanUserLimit,
+		"maxPlanUserLimit":                    maxPlanUserLimit,
+		"upgradePromptTitle":                  h.configStore.Get("team.upgrade_prompt.title"),
+		"upgradePromptBody":                   h.configStore.Get("team.upgrade_prompt.body"),
 		"entitlementUpgradePromptTitle":       h.configStore.Get("entitlement.upgrade_prompt.title"),
 		"entitlementUpgradePromptBody":        h.configStore.Get("entitlement.upgrade_prompt.body"),
 		"entitlementUpgradePromptNumericBody": h.configStore.Get("entitlement.upgrade_prompt.numeric_body"),

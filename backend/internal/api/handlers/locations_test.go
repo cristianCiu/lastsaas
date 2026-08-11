@@ -377,6 +377,33 @@ func TestLocationsPATCHRequiresAdminOrOwner(t *testing.T) {
 	}
 }
 
+func TestLocationsPATCHRequiresAssignedActiveStaffProfile(t *testing.T) {
+	env := setupTestServer(t)
+	defer env.Cleanup()
+	owner, tenant := setupProductTenant(t, env, "patch-assignment")
+	location := createLocation(t, env, owner, tenant.ID, validLocationBody)
+	admin := testutil.CreateTestUser(t, env.DB, "patch-restricted-admin@test.com", "Test1234!@#$", "Restricted Admin")
+	testutil.CreateTestMembership(t, env.DB, admin.ID, tenant.ID, models.RoleAdmin)
+	if _, err := env.DB.StaffProfiles().UpdateOne(context.Background(), bson.M{"tenantId": tenant.ID, "userId": admin.ID}, bson.M{"$set": bson.M{"allLocations": false, "locationIds": bson.A{}}}); err != nil {
+		t.Fatal(err)
+	}
+
+	path := "/api/product/locations/" + location.ID.Hex()
+	productResponse(t, env, env.tenantRequest(t, http.MethodPatch, path, strings.NewReader(`{"version":1,"name":"Denied"}`), admin, tenant.ID.Hex()), http.StatusNotFound, nil)
+	if _, err := env.DB.StaffProfiles().UpdateOne(context.Background(), bson.M{"tenantId": tenant.ID, "userId": admin.ID}, bson.M{"$set": bson.M{"status": models.StaffProfileInactive}}); err != nil {
+		t.Fatal(err)
+	}
+	productResponse(t, env, env.tenantRequest(t, http.MethodPatch, path, strings.NewReader(`{"version":1,"name":"Still denied"}`), admin, tenant.ID.Hex()), http.StatusForbidden, nil)
+
+	var stored models.Location
+	if err := env.DB.Locations().FindOne(context.Background(), bson.M{"_id": location.ID}).Decode(&stored); err != nil {
+		t.Fatal(err)
+	}
+	if stored.Name != location.Name || stored.Version != location.Version {
+		t.Fatalf("unauthorized location update changed target: %#v", stored)
+	}
+}
+
 func TestLocationsPATCHIsTenantScoped(t *testing.T) {
 	env := setupTestServer(t)
 	defer env.Cleanup()

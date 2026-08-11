@@ -126,25 +126,12 @@ func RequireEntitlement(database *db.MongoDB, feature string) func(http.Handler)
 				return
 			}
 
-			// Root tenant and billing-waived tenants get all features
-			if tenant.IsRoot || tenant.BillingWaived {
-				next.ServeHTTP(w, r)
-				return
-			}
-
-			if tenant.PlanID == nil {
-				http.Error(w, fmt.Sprintf(`{"error":"Feature '%s' requires an active plan","code":"ENTITLEMENT_REQUIRED"}`, feature), http.StatusForbidden)
-				return
-			}
-
-			var plan models.Plan
-			if err := database.Plans().FindOne(r.Context(), bson.M{"_id": *tenant.PlanID}).Decode(&plan); err != nil {
+			entitled, err := HasBooleanEntitlement(r.Context(), database, tenant, feature)
+			if err != nil {
 				http.Error(w, `{"error":"Plan not found"}`, http.StatusInternalServerError)
 				return
 			}
-
-			ent, exists := plan.Entitlements[feature]
-			if !exists || (ent.Type == models.EntitlementTypeBool && !ent.BoolValue) {
+			if !entitled {
 				http.Error(w, fmt.Sprintf(`{"error":"Feature '%s' is not included in your plan","code":"ENTITLEMENT_REQUIRED"}`, feature), http.StatusForbidden)
 				return
 			}
@@ -152,4 +139,21 @@ func RequireEntitlement(database *db.MongoDB, feature string) func(http.Handler)
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+// HasBooleanEntitlement resolves a boolean plan capability without accepting
+// malformed or numeric values as truthy. Root and billing-waived tenants remain exempt.
+func HasBooleanEntitlement(ctx context.Context, database *db.MongoDB, tenant *models.Tenant, feature string) (bool, error) {
+	if tenant.IsRoot || tenant.BillingWaived {
+		return true, nil
+	}
+	if tenant.PlanID == nil {
+		return false, nil
+	}
+	var plan models.Plan
+	if err := database.Plans().FindOne(ctx, bson.M{"_id": *tenant.PlanID}).Decode(&plan); err != nil {
+		return false, err
+	}
+	entitlement, exists := plan.Entitlements[feature]
+	return exists && entitlement.Type == models.EntitlementTypeBool && entitlement.BoolValue, nil
 }

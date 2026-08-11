@@ -605,12 +605,16 @@ func (h *TenantHandler) UpdateTenantSettings(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	updates := bson.M{"updatedAt": time.Now()}
-	if name := strings.TrimSpace(req.Name); name != "" {
-		updates["name"] = name
+	name := strings.TrimSpace(req.Name)
+	if name == "" || len(name) > 200 {
+		respondWithError(w, http.StatusBadRequest, "Tenant name must be between 1 and 200 characters")
+		return
 	}
-
-	h.db.Tenants().UpdateOne(r.Context(), bson.M{"_id": tenant.ID}, bson.M{"$set": updates})
+	result, err := h.db.Tenants().UpdateOne(r.Context(), bson.M{"_id": tenant.ID}, bson.M{"$set": bson.M{"name": name, "updatedAt": time.Now()}})
+	if err != nil || result.MatchedCount != 1 {
+		respondWithError(w, http.StatusInternalServerError, "Failed to update tenant settings")
+		return
+	}
 
 	if user, ok := middleware.GetUserFromContext(r.Context()); ok {
 		h.syslog.LogTenantActivity(r.Context(), models.LogLow, fmt.Sprintf("Tenant settings updated for %s", tenant.Name),

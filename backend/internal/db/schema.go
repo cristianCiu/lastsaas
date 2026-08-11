@@ -316,6 +316,9 @@ func tenantsSchema() CollectionSchema {
 						"bsonType": "string",
 						"enum":     bson.A{"none", "active", "past_due", "canceled", ""},
 					},
+					"onboardingCompletedAt": bson.M{
+						"bsonType": "date",
+					},
 					"seatQuantity": bson.M{
 						"bsonType": "int",
 					},

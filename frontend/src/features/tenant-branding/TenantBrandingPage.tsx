@@ -10,6 +10,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useTenantBranding } from '../../contexts/TenantBrandingContext';
 import { useTenant } from '../../contexts/TenantContext';
 import { getErrorMessage } from '../../utils/errors';
+import { locationBrandingKeys } from '../location-branding/queries';
 import { tenantBrandingApi } from './api';
 import { tenantBrandingKeys } from './queries';
 import type { TenantBranding, TenantBrandingAsset, TenantBrandingAssetKind, UpdateTenantBrandingInput } from './types';
@@ -97,6 +98,10 @@ export default function TenantBrandingPage() {
       const key = tenantBrandingKeys.detail(variables.principalId, variables.tenantId);
       queryClient.setQueryData<{ branding: TenantBranding }>(key, { branding });
       await queryClient.invalidateQueries({ queryKey: key, exact: true });
+      await queryClient.invalidateQueries({
+        queryKey: locationBrandingKeys.all,
+        predicate: (query) => query.queryKey[2] === variables.principalId && query.queryKey[3] === variables.tenantId,
+      });
       if (scope.current !== `${variables.principalId}:${variables.tenantId}`) return;
       const latest = queryClient.getQueryData<{ branding: TenantBranding }>(key)?.branding ?? branding;
       setForm({ primaryColor: latest.primaryColor, accentColor: latest.accentColor, font: latest.font });

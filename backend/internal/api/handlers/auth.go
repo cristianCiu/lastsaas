@@ -259,12 +259,18 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	invitationAccepted := false
 	if req.InvitationToken != "" {
 		if err := h.acceptInvitationForUser(r.Context(), user.ID, req.InvitationToken); err != nil {
-			slog.Error("Failed to accept invitation during registration", "error", err)
+			_, _ = h.db.Users().DeleteOne(r.Context(), bson.M{"_id": user.ID})
+			respondWithError(w, http.StatusBadRequest, err.Error())
+			return
 		} else {
 			invitationAccepted = true
 		}
 	} else {
-		h.createPersonalTenant(r.Context(), user.ID, user.DisplayName, now)
+		if err := h.createPersonalTenant(r.Context(), user.ID, user.DisplayName, now); err != nil {
+			_, _ = h.db.Users().DeleteOne(r.Context(), bson.M{"_id": user.ID})
+			respondWithError(w, http.StatusInternalServerError, "Failed to create workspace")
+			return
+		}
 	}
 
 	// Send verification email (skip if invitation already verified them)
@@ -1423,7 +1429,11 @@ func (h *AuthHandler) GoogleOAuthCallback(w http.ResponseWriter, r *http.Request
 				http.Redirect(w, r, h.frontendURL+"/login?error=account_creation_failed", http.StatusTemporaryRedirect)
 				return
 			}
-			h.createPersonalTenant(r.Context(), user.ID, user.DisplayName, now)
+			if err := h.createPersonalTenant(r.Context(), user.ID, user.DisplayName, now); err != nil {
+				_, _ = h.db.Users().DeleteOne(r.Context(), bson.M{"_id": user.ID})
+				http.Redirect(w, r, h.frontendURL+"/login?error=account_creation_failed", http.StatusTemporaryRedirect)
+				return
+			}
 			h.syslog.High(r.Context(), fmt.Sprintf("User created: %s (%s) via Google OAuth", user.Email, user.ID.Hex()))
 		} else {
 			h.db.Users().UpdateOne(r.Context(), bson.M{"_id": user.ID}, bson.M{
@@ -1561,7 +1571,11 @@ func (h *AuthHandler) GitHubOAuthCallback(w http.ResponseWriter, r *http.Request
 				http.Redirect(w, r, h.frontendURL+"/login?error=account_creation_failed", http.StatusTemporaryRedirect)
 				return
 			}
-			h.createPersonalTenant(r.Context(), user.ID, user.DisplayName, now)
+			if err := h.createPersonalTenant(r.Context(), user.ID, user.DisplayName, now); err != nil {
+				_, _ = h.db.Users().DeleteOne(r.Context(), bson.M{"_id": user.ID})
+				http.Redirect(w, r, h.frontendURL+"/login?error=account_creation_failed", http.StatusTemporaryRedirect)
+				return
+			}
 			h.syslog.High(r.Context(), fmt.Sprintf("User created: %s (%s) via GitHub OAuth", user.Email, user.ID.Hex()))
 		} else {
 			// Only link GitHub to existing account if user has verified their email
@@ -1708,7 +1722,11 @@ func (h *AuthHandler) MicrosoftOAuthCallback(w http.ResponseWriter, r *http.Requ
 				http.Redirect(w, r, h.frontendURL+"/login?error=account_creation_failed", http.StatusTemporaryRedirect)
 				return
 			}
-			h.createPersonalTenant(r.Context(), user.ID, user.DisplayName, now)
+			if err := h.createPersonalTenant(r.Context(), user.ID, user.DisplayName, now); err != nil {
+				_, _ = h.db.Users().DeleteOne(r.Context(), bson.M{"_id": user.ID})
+				http.Redirect(w, r, h.frontendURL+"/login?error=account_creation_failed", http.StatusTemporaryRedirect)
+				return
+			}
 			h.syslog.High(r.Context(), fmt.Sprintf("User created: %s (%s) via Microsoft OAuth", user.Email, user.ID.Hex()))
 		} else {
 			// Only link Microsoft to existing account if user has verified their email
@@ -1954,7 +1972,7 @@ func (h *AuthHandler) AcceptInvitation(w http.ResponseWriter, r *http.Request) {
 
 // --- Internal helpers ---
 
-func (h *AuthHandler) createPersonalTenant(ctx context.Context, userID primitive.ObjectID, displayName string, now time.Time) {
+func (h *AuthHandler) createPersonalTenant(ctx context.Context, userID primitive.ObjectID, displayName string, now time.Time) error {
 	slug := fmt.Sprintf("tenant-%s", primitive.NewObjectID().Hex()[:8])
 	tenant := models.Tenant{
 		ID:            primitive.NewObjectID(),
@@ -1976,8 +1994,7 @@ func (h *AuthHandler) createPersonalTenant(ctx context.Context, userID primitive
 	}
 	session, err := h.db.Client.StartSession()
 	if err != nil {
-		slog.Error("Failed to start personal tenant transaction", "error", err)
-		return
+		return fmt.Errorf("start personal tenant transaction: %w", err)
 	}
 	defer session.EndSession(ctx)
 	if _, err := session.WithTransaction(ctx, func(sc mongo.SessionContext) (interface{}, error) {
@@ -1989,8 +2006,7 @@ func (h *AuthHandler) createPersonalTenant(ctx context.Context, userID primitive
 		}
 		return nil, product.InsertDefaultStaffProfile(sc, h.db, tenant.ID, userID, models.RoleOwner)
 	}); err != nil {
-		slog.Error("Failed to create personal tenant and staff profile", "userId", userID.Hex(), "error", err)
-		return
+		return fmt.Errorf("create personal tenant and staff profile: %w", err)
 	}
 
 	h.events.Emit(events.Event{
@@ -1998,6 +2014,7 @@ func (h *AuthHandler) createPersonalTenant(ctx context.Context, userID primitive
 		Timestamp: now,
 		Data:      map[string]interface{}{"tenantId": tenant.ID.Hex(), "userId": userID.Hex()},
 	})
+	return nil
 }
 
 func (h *AuthHandler) sendVerificationEmail(ctx context.Context, userID primitive.ObjectID, userEmail, displayName string) {

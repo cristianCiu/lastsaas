@@ -17,9 +17,6 @@ func TestLocationBrandingResolutionAuthorizationIsolationAndReset(t *testing.T) 
 	env := setupTestServer(t)
 	defer env.Cleanup()
 	owner, tenant := setupProductTenant(t, env, "location-branding")
-	if _, err := env.DB.Tenants().UpdateOne(context.Background(), bson.M{"_id": tenant.ID}, bson.M{"$set": bson.M{"billingWaived": true}}); err != nil {
-		t.Fatal(err)
-	}
 	location := createLocation(t, env, owner, tenant.ID, `{"code":"berlin","name":"Berlin Mitte","timezone":"Europe/Berlin"}`)
 
 	tenantBody := `{"primaryColor":"#111111","accentColor":"#222222","font":"humanist","version":0}`
@@ -45,6 +42,15 @@ func TestLocationBrandingResolutionAuthorizationIsolationAndReset(t *testing.T) 
 	}
 	valid := `{"displayName":" Flagship ","primaryColor":" #AABBCC ","accentColor":"","font":"GEOMETRIC","version":0}`
 	productResponse(t, env, env.tenantRequest(t, http.MethodPut, path, strings.NewReader(valid), member, tenant.ID.Hex()), http.StatusForbidden, nil)
+	productResponse(t, env, env.tenantRequest(t, http.MethodPut, path, strings.NewReader(valid), owner, tenant.ID.Hex()), http.StatusForbidden, nil)
+
+	plan := testutil.CreateTestPlan(t, env.DB, "Location Branding", 1000, false)
+	if _, err := env.DB.Plans().UpdateOne(context.Background(), bson.M{"_id": plan.ID}, bson.M{"$set": bson.M{"entitlements.location_branding": models.EntitlementValue{Type: models.EntitlementTypeBool, BoolValue: true}}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := env.DB.Tenants().UpdateOne(context.Background(), bson.M{"_id": tenant.ID}, bson.M{"$set": bson.M{"planId": plan.ID}}); err != nil {
+		t.Fatal(err)
+	}
 
 	var created struct {
 		Branding models.LocationBranding `json:"branding"`
@@ -60,6 +66,22 @@ func TestLocationBrandingResolutionAuthorizationIsolationAndReset(t *testing.T) 
 	if resolved.Resolved.PrimaryColor != "#aabbcc" || resolved.Resolved.AccentColor != "#222222" || resolved.Resolved.Sources["accentColor"] != "tenant" {
 		t.Fatalf("unexpected resolved override: %#v", resolved.Resolved)
 	}
+	if _, err := env.DB.Plans().UpdateOne(context.Background(), bson.M{"_id": plan.ID}, bson.M{"$set": bson.M{"entitlements.location_branding": models.EntitlementValue{Type: models.EntitlementTypeNumeric, NumericValue: 1}}}); err != nil {
+		t.Fatal(err)
+	}
+	var downgraded struct {
+		Branding models.LocationBranding         `json:"branding"`
+		Resolved models.ResolvedLocationBranding `json:"resolved"`
+		Entitled bool                            `json:"entitled"`
+	}
+	productResponse(t, env, env.tenantRequest(t, http.MethodGet, path, nil, owner, tenant.ID.Hex()), http.StatusOK, &downgraded)
+	if downgraded.Entitled || downgraded.Branding.Version != 1 || downgraded.Resolved.PrimaryColor != "#111111" || downgraded.Resolved.Sources["primaryColor"] != "tenant" {
+		t.Fatalf("downgrade did not preserve stored override while removing it from resolution: %#v", downgraded)
+	}
+	productResponse(t, env, env.tenantRequest(t, http.MethodDelete, path+"?version=1", nil, owner, tenant.ID.Hex()), http.StatusForbidden, nil)
+	if _, err := env.DB.Plans().UpdateOne(context.Background(), bson.M{"_id": plan.ID}, bson.M{"$set": bson.M{"entitlements.location_branding": models.EntitlementValue{Type: models.EntitlementTypeBool, BoolValue: true}}}); err != nil {
+		t.Fatal(err)
+	}
 
 	var conflict apierror.Response
 	productResponse(t, env, env.tenantRequest(t, http.MethodPut, path, strings.NewReader(valid), owner, tenant.ID.Hex()), http.StatusConflict, &conflict)
@@ -68,9 +90,6 @@ func TestLocationBrandingResolutionAuthorizationIsolationAndReset(t *testing.T) 
 	}
 
 	otherOwner, otherTenant := setupProductTenant(t, env, "location-branding-other")
-	if _, err := env.DB.Tenants().UpdateOne(context.Background(), bson.M{"_id": otherTenant.ID}, bson.M{"$set": bson.M{"billingWaived": true}}); err != nil {
-		t.Fatal(err)
-	}
 	productResponse(t, env, env.tenantRequest(t, http.MethodGet, path, nil, otherOwner, otherTenant.ID.Hex()), http.StatusNotFound, nil)
 
 	productResponse(t, env, env.tenantRequest(t, http.MethodDelete, path+"?version=1", nil, owner, tenant.ID.Hex()), http.StatusNoContent, nil)

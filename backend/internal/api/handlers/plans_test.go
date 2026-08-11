@@ -434,3 +434,30 @@ func TestIntegration_AdminCannotAssignPlan(t *testing.T) {
 		t.Errorf("expected 403, got %d", resp.StatusCode)
 	}
 }
+
+func TestPlanRequestValidatesKnownRestaurantEntitlementContracts(t *testing.T) {
+	tests := []struct {
+		name        string
+		key         string
+		entitlement models.EntitlementValue
+	}{
+		{name: "boolean max locations", key: "max_locations", entitlement: models.EntitlementValue{Type: models.EntitlementTypeBool, BoolValue: true}},
+		{name: "zero max locations", key: "max_locations", entitlement: models.EntitlementValue{Type: models.EntitlementTypeNumeric, NumericValue: 0}},
+		{name: "numeric location branding", key: "location_branding", entitlement: models.EntitlementValue{Type: models.EntitlementTypeNumeric, NumericValue: 1}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			request := planRequest{Name: "Restaurant Plan", Entitlements: map[string]models.EntitlementValue{test.key: test.entitlement}}
+			if err := validatePlanRequest(&request); err == nil {
+				t.Fatal("expected known entitlement contract validation error")
+			}
+		})
+	}
+	request := planRequest{Name: "Restaurant Plan", Entitlements: map[string]models.EntitlementValue{
+		"max_locations":     {Type: models.EntitlementTypeNumeric, NumericValue: 2},
+		"location_branding": {Type: models.EntitlementTypeBool, BoolValue: true},
+	}}
+	if err := validatePlanRequest(&request); err != nil {
+		t.Fatalf("valid restaurant entitlement contracts rejected: %v", err)
+	}
+}

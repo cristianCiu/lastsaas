@@ -42,6 +42,7 @@ import RestaurantSettingsPage from './features/restaurant-settings/RestaurantSet
 import StorageAreasPage from './features/storage-areas/StorageAreasPage';
 import TenantBrandingPage from './features/tenant-branding/TenantBrandingPage';
 import LocationBrandingPage from './features/location-branding/LocationBrandingPage';
+import OnboardingGate from './features/onboarding/OnboardingGate';
 
 // Admin pages (lazy — only loaded by root tenant admins)
 const AdminDashboardPage = lazy(() => import('./pages/admin/DashboardPage'));
@@ -155,6 +156,7 @@ export default function App() {
 
                     {/* Protected app routes */}
                     <Route element={<ProtectedRoute />}>
+                      <Route element={<OnboardingGate />}>
                       {/* Onboarding (no layout) */}
                       <Route path="/onboarding" element={<OnboardingPage />} />
 
@@ -174,6 +176,7 @@ export default function App() {
                         <Route path="/activity" element={<ActivityPage />} />
                         <Route path="/test-entitlements" element={<TestEntitlementsPage />} />
                         <Route path="/messages" element={<Suspense fallback={<LazyFallback />}><AdminMessagesPage /></Suspense>} />
+                      </Route>
                       </Route>
 
                       {/* Admin routes (root tenant only, enforced by AdminLayout) */}

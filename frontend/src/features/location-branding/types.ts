@@ -25,6 +25,7 @@ export interface ResolvedLocationBranding {
 export interface LocationBrandingResponse {
   branding: LocationBranding;
   resolved: ResolvedLocationBranding;
+  entitled: boolean;
 }
 
 export interface UpdateLocationBrandingInput {

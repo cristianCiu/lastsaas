@@ -31,7 +31,7 @@ export default function LocationBrandingPage() {
   const locationId = activeLocation?.id ?? '';
   const scopeKey = `${principalId}:${tenantId}:${locationId}`;
   const scope = useRef(scopeKey);
-  const canWrite = !isRootTenant && (role === 'owner' || role === 'admin');
+  const roleCanWrite = !isRootTenant && (role === 'owner' || role === 'admin');
   const queryClient = useQueryClient();
   const [form, setForm] = useState<LocationBrandingFields>(EMPTY_FORM);
   const [version, setVersion] = useState(0);
@@ -44,6 +44,7 @@ export default function LocationBrandingPage() {
     queryFn: () => locationBrandingApi.get(locationId),
     enabled: !!principalId && !!tenantId && !!locationId && !isRootTenant,
   });
+  const canWrite = roleCanWrite && brandingQuery.data?.entitled === true;
   const updateBranding = useMutation({
     mutationFn: ({ locationId, input }: { principalId: string; tenantId: string; locationId: string; input: UpdateLocationBrandingInput }) => locationBrandingApi.update(locationId, input),
     onSuccess: async ({ branding }, variables) => {
@@ -127,7 +128,7 @@ export default function LocationBrandingPage() {
   return <div className="space-y-8">
     <header><div className="mb-2 flex items-center gap-2 text-sm font-medium text-primary-400"><Paintbrush className="h-4 w-4" />Workspace settings</div><h1 className="text-3xl font-bold tracking-tight text-white">Location branding</h1><p className="mt-2 max-w-2xl text-dark-400">Override safe visual tokens for the active location. Empty fields inherit restaurant branding and then platform defaults.</p></header>
     <WorkspaceSettingsNav />
-    {!canWrite && !isRootTenant && <Alert variant="info" className="flex items-start gap-2 p-4"><LockKeyhole className="mt-0.5 h-4 w-4 shrink-0" /><span><strong className="font-semibold">Read-only access.</strong> Owners and admins with an eligible plan can publish location overrides.</span></Alert>}
+    {!canWrite && !isRootTenant && !brandingQuery.isPending && <Alert variant="info" className="flex items-start gap-2 p-4"><LockKeyhole className="mt-0.5 h-4 w-4 shrink-0" /><span><strong className="font-semibold">Read-only access.</strong> Owners and admins with the location branding plan feature can publish overrides.</span></Alert>}
     {success && <Alert variant="success" className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />{success}</Alert>}
     {mutationError && <Alert className="flex items-start gap-2"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />{mutationError}</Alert>}
     <section className="overflow-hidden rounded-2xl border border-dark-800 bg-dark-900/60">

@@ -36,7 +36,7 @@ function renderPage() {
 
 describe('LocationBrandingPage', () => {
   beforeEach(() => {
-    mocks.get.mockReset().mockResolvedValue({ branding: existing, resolved });
+    mocks.get.mockReset().mockResolvedValue({ branding: existing, resolved, entitled: true });
     mocks.update.mockReset();
     mocks.reset.mockReset();
   });
@@ -44,9 +44,10 @@ describe('LocationBrandingPage', () => {
   it('publishes normalized location overrides with the loaded version', async () => {
     const user = userEvent.setup();
     mocks.update.mockResolvedValue({ branding: { displayName: 'Patio', primaryColor: '#aabbcc', accentColor: '', font: '', version: 3 } });
-    mocks.get.mockResolvedValueOnce({ branding: existing, resolved }).mockResolvedValue({
+    mocks.get.mockResolvedValueOnce({ branding: existing, resolved, entitled: true }).mockResolvedValue({
       branding: { displayName: 'Patio', primaryColor: '#aabbcc', accentColor: '', font: '', version: 3 },
       resolved: { ...resolved, displayName: 'Patio', primaryColor: '#aabbcc', locationBrandingVersion: 3 },
+      entitled: true,
     });
     renderPage();
 

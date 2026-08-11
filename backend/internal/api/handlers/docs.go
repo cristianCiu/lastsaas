@@ -272,6 +272,21 @@ func apiReference() []apiSection {
 			},
 		},
 		{
+			Title: "Restaurant Onboarding",
+			Endpoints: []apiEndpoint{
+				{
+					Method: "GET", Path: "/api/product/onboarding", Summary: "Get restaurant onboarding status",
+					Detail: "Returns tenant-scoped, resumable completion state for persisted restaurant settings and the first active location. Requires an active staff profile; platform tenants are rejected.", Auth: "jwt+tenant+staff",
+					Response: `{"onboarding":{"completed":false,"restaurantSettingsComplete":true,"firstLocationComplete":false}}`,
+				},
+				{
+					Method: "POST", Path: "/api/product/onboarding/complete", Summary: "Complete restaurant onboarding",
+					Detail: "Requires the tenant owner, persisted restaurant settings, and at least one active location. Completion is tenant-scoped, audited, and idempotent; incomplete setup returns VALIDATION_ERROR.", Auth: "owner",
+					Response: `{"onboarding":{"completed":true,"restaurantSettingsComplete":true,"firstLocationComplete":true,"completedAt":"..."}}`,
+				},
+			},
+		},
+		{
 			Title: "Product Locations",
 			Endpoints: []apiEndpoint{
 				{
@@ -358,9 +373,9 @@ func apiReference() []apiSection {
 			Endpoints: []apiEndpoint{
 				{
 					Method: "GET", Path: "/api/product/locations/{locationId}/branding", Summary: "Get location branding and resolved fallback",
-					Detail: "Returns the raw location override and deterministic location-to-tenant-to-platform resolution. Requires an active staff profile assigned to the location. The response identifies each field source, carries location and tenant branding versions, and uses a private ETag.", Auth: "staff location",
+					Detail: "Returns the raw location override, entitlement state, and deterministic location-to-tenant-to-platform resolution. Requires an active staff profile assigned to the location. A stored override is preserved but excluded from resolution after a plan downgrade. The private ETag includes location, override, tenant branding, and entitlement state.", Auth: "staff location",
 					Params:   []apiParam{{"locationId", "ObjectID", true, "The assigned tenant location ID"}},
-					Response: `{"branding":{"displayName":"Flagship","primaryColor":"#0ea5e9","accentColor":"","font":"","version":1},"resolved":{"locationId":"...","displayName":"Flagship","primaryColor":"#0ea5e9","accentColor":"#a855f7","font":"humanist","locationBrandingVersion":1,"tenantBrandingVersion":2,"sources":{"displayName":"location_branding","primaryColor":"location_branding","accentColor":"tenant","font":"tenant"}}}`,
+					Response: `{"branding":{"displayName":"Flagship","primaryColor":"#0ea5e9","accentColor":"","font":"","version":1},"resolved":{"locationId":"...","displayName":"Flagship","primaryColor":"#0ea5e9","accentColor":"#a855f7","font":"humanist","locationBrandingVersion":1,"tenantBrandingVersion":2,"sources":{"displayName":"location_branding","primaryColor":"location_branding","accentColor":"tenant","font":"tenant"}},"entitled":true}`,
 				},
 				{
 					Method: "PUT", Path: "/api/product/locations/{locationId}/branding", Summary: "Replace location branding overrides",
