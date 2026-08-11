@@ -14,6 +14,47 @@ The bottleneck for building software isn't engineering capacity anymore — it's
 
 ---
 
+## Product Evolution: Restaurant Operations SaaS
+
+This fork preserves LastSaaS as its infrastructure baseline and is evolving it into a multi-tenant restaurant inventory and forecasting product. The original authentication, tenant isolation, billing, administration, telemetry, deployment, and platform-branding capabilities remain the foundation; restaurant product modules are added incrementally in the same Go modular monolith and React application.
+
+The current application version is **1.4.0**. `VERSION` is the runtime version source, while this ledger ties product evolution to immutable Git commits. Planned versions are targets and retain `TBD` until implementation is committed.
+
+### Boilerplate Baseline
+
+| App version | Commit | Baseline capability |
+|---|---|---|
+| 1.3 | [`c692923`](https://github.com/cristianCiu/lastsaas/commit/c692923) | Original LastSaaS SaaS boilerplate used by this fork: identity, tenancy, billing, admin, platform branding, API keys, webhooks, telemetry, health monitoring, and single-image deployment. |
+
+### Completed Product Changes
+
+| App version | Commit | Introduced feature |
+|---|---|---|
+| 1.3 | [`d36716d`](https://github.com/cristianCiu/lastsaas/commit/d36716d) | Tenant-isolated restaurant locations, plan limits, active-location selection, strict persistence, frontend management, and product architecture records. |
+| 1.3 | [`7efeeaf`](https://github.com/cristianCiu/lastsaas/commit/7efeeaf) | Restaurant settings and location-scoped storage areas with validated, versioned self-service workflows. |
+| 1.3 | [`b47ddd4`](https://github.com/cristianCiu/lastsaas/commit/b47ddd4) | Staff profiles, business roles, location assignments, permission overrides, and transactional ownership authorization. |
+| 1.3 | [`8fb1dc1`](https://github.com/cristianCiu/lastsaas/commit/8fb1dc1) | Restricted tenant branding with safe color/font tokens, deterministic platform fallback, and isolated authenticated asset storage. |
+| 1.3 | [`fca14d1`](https://github.com/cristianCiu/lastsaas/commit/fca14d1) | Tenant primary/compact logo management and scope-safe authenticated logo rendering. |
+| 1.3 | [`2a2bc9d`](https://github.com/cristianCiu/lastsaas/commit/2a2bc9d) | Stable package-isolated MongoDB Atlas integration testing and deterministic webhook synchronization. |
+| 1.4.0 | [`caaba7e`](https://github.com/cristianCiu/lastsaas/commit/caaba7e) | Location branding API with assigned-location authorization, entitlement-gated writes, optimistic concurrency, audit history, and location-to-tenant-to-platform resolution. |
+| 1.4.0 | [`4c8cf1f`](https://github.com/cristianCiu/lastsaas/commit/4c8cf1f) | Active-location branding UI, self-service overrides, resolved workspace identity, theme application, inheritance preview, and reset workflow. |
+
+### Planned Product Roadmap
+
+| Target app version | Commit | Planned feature |
+|---|---|---|
+| 1.5.0 | `TBD` | Complete Phase 1 with guided restaurant onboarding, plan/entitlement edge cases, and authenticated end-to-end isolation coverage. |
+| 2.0.0 | `TBD` | Master data and import foundation: fixed-point units, categories, items, suppliers, purchasing terms, idempotent CSV dry runs, fixtures, and mapping reports. |
+| 3.0.0 | `TBD` | Append-only inventory journal: balances, lots/expiry, FEFO, transfers, waste, corrections, mobile stock counts, transactional posting, and reconciliation. |
+| 4.0.0 | `TBD` | Recipes and consumption: versioned recipes/subrecipes, POS mappings, normalized sales and guest actuals, theoretical consumption, reversals, and data-quality queues. |
+| 5.0.0 | `TBD` | Purchasing and goods receipt: approval workflow, delivery calendars, pack/MOQ rounding, variances, lots, and tenant/location-branded order documents. |
+| 6.0.0 | `TBD` | Forecasting and reorder recommendations: statistical baselines, leased worker jobs, guest/demand/range forecasts, uncertainty bands, backtesting, and manual approval only. |
+| 7.0.0 | `TBD` | Pilot hardening: complete customer onboarding, GDPR lifecycle, backup/restore validation, operational health, accessibility, performance, security, and shadow-mode KPIs. |
+
+Detailed scope and exit gates live in [`docs/IMPLEMENTATION_SEQUENCE.md`](docs/IMPLEMENTATION_SEQUENCE.md), [`WARENWIRTSCHAFT_SAAS_BAUPLAN.md`](WARENWIRTSCHAFT_SAAS_BAUPLAN.md), and [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md).
+
+---
+
 ## Why LastSaaS Exists
 
 Every SaaS product needs the same boring foundation: user accounts, teams, roles, authentication, admin dashboards, billing, usage limits, branding, webhooks, API keys. Historically, building that foundation meant weeks of plumbing before you could write a single line of your actual product.

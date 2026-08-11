@@ -1,5 +1,34 @@
 # LastSaaS Version Notes
 
+## v1.4.0 — August 11, 2026
+
+### Restaurant Location Branding
+- **Resolved location branding API** (`caaba7e`) — safe location overrides with assigned-location authorization, `location_branding` entitlement enforcement, owner/admin writes, optimistic concurrency, private ETags, reset auditing, and deterministic location → tenant → platform fallback.
+- **Active-location branding frontend** (`4c8cf1f`) — active-location colors and fonts drive authenticated workspace themes, resolved display names identify the workspace, and public/root surfaces retain platform branding.
+- **Location branding self-service** (`4c8cf1f`) — responsive settings editor with inherited-value preview, source visibility, normalized publish, versioned reset, conflict recovery, and explicit read-only, root, empty, loading, and error states.
+- **Verification** — production frontend build and lint pass; all 57 frontend tests across 18 files pass; Atlas-backed backend coverage passed with the API slice.
+
+### Restaurant Foundation Carried Forward
+- Tenant-isolated locations, restaurant settings, storage areas, active-location selection, staff authorization, restricted tenant branding, and authenticated tenant logos remain the completed Phase 1 foundation.
+
+---
+
+## v1.3 — March 5, 2026
+
+### SaaS Boilerplate Baseline
+- Original LastSaaS baseline for this restaurant-product fork, including authentication, multi-tenancy, Stripe billing, administration, platform branding, API keys, outgoing webhooks, telemetry, health monitoring, and deployment infrastructure.
+- Added DataDog metric corrections and a Today product-analytics time filter in `c692923`.
+
+### Restaurant Product Work Initially Developed on v1.3
+- Tenant-scoped locations and active-location selection (`d36716d`).
+- Restaurant settings and location-scoped storage areas (`7efeeaf`).
+- Staff profiles, business permissions, and assigned-location authorization (`b47ddd4`).
+- Restricted tenant branding and isolated asset APIs (`8fb1dc1`).
+- Authenticated tenant logo management and rendering (`fca14d1`).
+- Stabilized Atlas integration infrastructure (`2a2bc9d`).
+
+---
+
 ## v1.2 — March 1, 2026
 
 ### Product Analytics & Telemetry (New)

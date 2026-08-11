@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-Phase 1C: safe tenant and location branding.
+Phase 1D: restaurant onboarding and Phase 1 end-to-end hardening.
 
 ## Completed
 
@@ -42,6 +42,10 @@ Phase 1C: safe tenant and location branding.
 - Authenticated tenant logo APIs use separate strict storage, random internal keys, tenant/kind uniqueness, optimistic versions, PNG/JPEG signature and MIME checks, decoded dimension limits, private ETags, owner/admin lifecycle operations, and tenant audit logs.
 - Primary and compact tenant logos support authenticated blob loading, scope-bound object URL cleanup, versioned owner/admin upload/delete controls, and tenant-aware workspace header rendering with platform fallback for root and public surfaces.
 - Frontend verification now covers 50 tests across fifteen files; lint, type-check, and the production build pass.
+- Location branding backend supports strict safe overrides, assigned-location authorization, entitlement-gated owner/admin writes, optimistic concurrency, reset audit, private ETags, and deterministic location-to-tenant-to-platform resolution.
+- Location branding frontend resolution is scoped by principal, tenant, and active location; resolved colors/fonts drive authenticated workspace themes while location display names drive visible workspace identity.
+- Responsive location-branding self-service supports inheritance previews, assigned-location context, normalized safe overrides, optimistic publish/reset operations, conflict recovery, read-only/root/empty/error states, and race-isolated cache updates.
+- Frontend verification now covers 57 tests across eighteen files; lint, type-check, and the production build pass.
 
 ## Baseline Fixes
 
@@ -51,7 +55,6 @@ Phase 1C: safe tenant and location branding.
 - Fixed the Dockerfile to consume a committed non-secret production template and listen on port 8080.
 - Installed the Playwright Chromium version matching the locked frontend dependency; all 16 existing browser tests pass.
 - Stabilized Atlas-backed suites with package-isolated databases, per-package client reuse, bounded connection retries, and deterministic webhook dispatch synchronization.
-- Location branding backend supports strict safe overrides, assigned-location authorization, entitlement-gated owner/admin writes, optimistic concurrency, reset audit, private ETags, and deterministic location-to-tenant-to-platform resolution.
 
 ## Blocked External Verification
 
@@ -60,7 +63,7 @@ Phase 1C: safe tenant and location branding.
 
 ## Active Task
 
-Connect resolved location branding to the authenticated frontend and add location-branding self-service, then implement restaurant onboarding before broader inventory master data.
+Implement guided restaurant onboarding, complete Phase 1 entitlement and authenticated end-to-end isolation coverage, then begin inventory master data.
 
 ## Known Follow-Ups
 
