@@ -17,7 +17,7 @@ import { useTenant } from '../../contexts/TenantContext';
 import { locationKeys } from '../../features/locations/queries';
 import { staffProfilesApi } from '../../features/staff-profiles/api';
 import { staffProfileKeys } from '../../features/staff-profiles/queries';
-import { BUSINESS_ROLES, STORAGE_PERMISSIONS, type BusinessRole, type PermissionOverride, type StaffProfile, type StaffProfileStatus, type StoragePermission, type UpdateStaffProfileInput } from '../../features/staff-profiles/types';
+import { BUSINESS_PERMISSIONS, BUSINESS_ROLES, type BusinessPermission, type BusinessRole, type PermissionOverride, type StaffProfile, type StaffProfileStatus, type UpdateStaffProfileInput } from '../../features/staff-profiles/types';
 import { storageAreaKeys } from '../../features/storage-areas/queries';
 import { teamKeys } from '../../features/team/queries';
 import type { TenantMember } from '../../types';
@@ -34,7 +34,7 @@ function renderTemplate(template: string, vars: Record<string, string | number>)
   return result.replace(/\{\{if ne \.(\w+) (\d+)\}\}(.*?)\{\{end\}\}/g, (_match, varName, compare, content) => String(vars[varName]) !== compare ? content : '');
 }
 
-function overrideValue(overrides: PermissionOverride[], permission: StoragePermission): 'inherit' | 'allow' | 'deny' {
+function overrideValue(overrides: PermissionOverride[], permission: BusinessPermission): 'inherit' | 'allow' | 'deny' {
   const override = overrides.find((item) => item.permission === permission);
   return override ? override.allowed ? 'allow' : 'deny' : 'inherit';
 }
@@ -54,7 +54,7 @@ function ProfileEditor({ profile, locations, saving, error, onCancel, onSave }: 
   const [overrides, setOverrides] = useState(profile.permissionOverrides);
   const unavailableLocationIds = locationIds.filter((id) => !locations.some((location) => location.id === id));
 
-  const setOverride = (permission: StoragePermission, value: 'inherit' | 'allow' | 'deny') => {
+  const setOverride = (permission: BusinessPermission, value: 'inherit' | 'allow' | 'deny') => {
     setOverrides((current) => value === 'inherit'
       ? current.filter((item) => item.permission !== permission)
       : [...current.filter((item) => item.permission !== permission), { permission, allowed: value === 'allow' }]);
@@ -81,7 +81,7 @@ function ProfileEditor({ profile, locations, saving, error, onCancel, onSave }: 
     </fieldset>
     <fieldset className="grid gap-3 sm:grid-cols-2" disabled={saving}>
       <legend className="mb-2 text-sm font-medium text-dark-300 sm:col-span-2">Storage permissions</legend>
-      {STORAGE_PERMISSIONS.map((permission) => <Select key={permission} label={permission === 'storage_areas.read' ? 'View storage areas' : 'Manage storage areas'} value={overrideValue(overrides, permission)} onChange={(event) => setOverride(permission, event.target.value as 'inherit' | 'allow' | 'deny')}><option value="inherit">Default / inherit</option><option value="allow">Allow</option><option value="deny">Deny</option></Select>)}
+      {BUSINESS_PERMISSIONS.map((permission) => <Select key={permission} label={{ 'storage_areas.read': 'View storage areas', 'storage_areas.manage': 'Manage storage areas', 'catalog.read': 'View catalog', 'catalog.manage': 'Manage catalog' }[permission]} value={overrideValue(overrides, permission)} onChange={(event) => setOverride(permission, event.target.value as 'inherit' | 'allow' | 'deny')}><option value="inherit">Default / inherit</option><option value="allow">Allow</option><option value="deny">Deny</option></Select>)}
     </fieldset>
     <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onCancel} disabled={saving}>Cancel</Button><Button type="submit" disabled={saving}>{saving ? 'Saving...' : 'Save access profile'}</Button></div>
   </form>;

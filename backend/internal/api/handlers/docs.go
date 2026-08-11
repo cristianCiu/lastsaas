@@ -287,6 +287,29 @@ func apiReference() []apiSection {
 			},
 		},
 		{
+			Title: "Catalog Units",
+			Endpoints: []apiEndpoint{
+				{
+					Method: "GET", Path: "/api/product/units", Summary: "List tenant units",
+					Detail: "Lists active tenant-owned measurement units, or all units with includeInactive=true. Requires an active staff profile and catalog.read. Codes are canonical tenant-unique slugs.", Auth: "jwt+tenant",
+					Response: `{"units":[{"id":"...","code":"kg","name":"Kilogram","symbol":"kg","dimension":"mass","precision":3,"isActive":true,"version":1}]}`,
+				},
+				{
+					Method: "POST", Path: "/api/product/units", Summary: "Create a tenant unit",
+					Detail: "Creates an active mass, volume, or count unit. Requires catalog.manage. Precision is 0-6 and controls display precision; quantity arithmetic uses fixed micro-units independently.", Auth: "jwt+tenant",
+					Body:     `{"code":"kg","name":"Kilogram","symbol":"kg","dimension":"mass","precision":3}`,
+					Response: `{"unit":{"id":"...","code":"kg","name":"Kilogram","symbol":"kg","dimension":"mass","precision":3,"isActive":true,"version":1}}`,
+				},
+				{
+					Method: "PATCH", Path: "/api/product/units/{unitId}", Summary: "Update or deactivate a tenant unit",
+					Detail: "Updates mutable presentation fields or lifecycle state with optimistic concurrency. Code and dimension are immutable. Cross-tenant IDs return NOT_FOUND and stale versions return VERSION_CONFLICT. Requires catalog.manage.", Auth: "jwt+tenant",
+					Params:   []apiParam{{"unitId", "ObjectID", true, "The tenant unit ID"}},
+					Body:     `{"version":1,"name":"Kilogram metric","symbol":"kg","precision":3,"isActive":true}`,
+					Response: `{"unit":{"id":"...","code":"kg","name":"Kilogram metric","symbol":"kg","dimension":"mass","precision":3,"isActive":true,"version":2}}`,
+				},
+			},
+		},
+		{
 			Title: "Product Locations",
 			Endpoints: []apiEndpoint{
 				{

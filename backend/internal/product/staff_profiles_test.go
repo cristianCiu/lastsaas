@@ -17,8 +17,8 @@ func TestStaffProfileDefaultsAndOverrides(t *testing.T) {
 		allLocations  bool
 		permissionLen int
 	}{
-		{models.RoleOwner, models.BusinessRoleCompanyOwner, true, 2},
-		{models.RoleAdmin, models.BusinessRoleOperationsManager, true, 2},
+		{models.RoleOwner, models.BusinessRoleCompanyOwner, true, 4},
+		{models.RoleAdmin, models.BusinessRoleOperationsManager, true, 4},
 		{models.RoleUser, models.BusinessRoleViewer, false, 0},
 	}
 	for _, test := range tests {
@@ -35,12 +35,16 @@ func TestStaffProfileDefaultsAndOverrides(t *testing.T) {
 	profile.PermissionOverrides = []models.PermissionOverride{
 		{Permission: models.PermissionStorageAreasRead, Allowed: false},
 		{Permission: models.PermissionStorageAreasManage, Allowed: true},
+		{Permission: models.PermissionCatalogManage, Allowed: false},
 	}
 	if HasBusinessPermission(&profile, models.PermissionStorageAreasRead) {
 		t.Fatal("explicit deny must override role default")
 	}
 	if !HasBusinessPermission(&profile, models.PermissionStorageAreasManage) {
 		t.Fatal("explicit allow must override role default")
+	}
+	if HasBusinessPermission(&profile, models.PermissionCatalogManage) {
+		t.Fatal("explicit catalog deny must override role default")
 	}
 }
 

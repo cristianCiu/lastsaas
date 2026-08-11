@@ -31,6 +31,8 @@ type staffProfileContextKey struct{}
 var allBusinessPermissions = []models.BusinessPermission{
 	models.PermissionStorageAreasRead,
 	models.PermissionStorageAreasManage,
+	models.PermissionCatalogRead,
+	models.PermissionCatalogManage,
 }
 
 func DefaultBusinessRole(role models.MemberRole) models.BusinessRole {

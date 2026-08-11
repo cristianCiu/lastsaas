@@ -43,6 +43,27 @@ func AllSchemas() []CollectionSchema {
 		tenantBrandingAssetsSchema(),
 		storageAreasSchema(),
 		staffProfilesSchema(),
+		unitsSchema(),
+	}
+}
+
+func unitsSchema() CollectionSchema {
+	return CollectionSchema{
+		Collection: "units", Critical: true, ValidationLevel: "strict",
+		Schema: bson.M{"$jsonSchema": bson.M{
+			"bsonType": "object", "additionalProperties": false,
+			"required": bson.A{"_id", "tenantId", "code", "name", "symbol", "dimension", "precision", "isActive", "version", "createdAt", "updatedAt"},
+			"properties": bson.M{
+				"_id": bson.M{"bsonType": "objectId"}, "tenantId": bson.M{"bsonType": "objectId"},
+				"code":      bson.M{"bsonType": "string", "pattern": `^[a-z0-9]+(?:-[a-z0-9]+)*$`, "maxLength": 32},
+				"name":      bson.M{"bsonType": "string", "pattern": `.*\S.*`, "maxLength": 100},
+				"symbol":    bson.M{"bsonType": "string", "pattern": `.*\S.*`, "maxLength": 16},
+				"dimension": bson.M{"bsonType": "string", "enum": bson.A{"mass", "volume", "count"}},
+				"precision": bson.M{"bsonType": "int", "minimum": 0, "maximum": 6},
+				"isActive":  bson.M{"bsonType": "bool"}, "version": bson.M{"bsonType": "long", "minimum": 1},
+				"createdAt": bson.M{"bsonType": "date"}, "updatedAt": bson.M{"bsonType": "date"},
+			},
+		}},
 	}
 }
 
@@ -119,7 +140,7 @@ func staffProfilesSchema() CollectionSchema {
 					"locationIds":  bson.M{"bsonType": "array", "uniqueItems": true, "items": bson.M{"bsonType": "objectId"}},
 					"permissionOverrides": bson.M{"bsonType": "array", "items": bson.M{
 						"bsonType": "object", "additionalProperties": false, "required": bson.A{"permission", "allowed"},
-						"properties": bson.M{"permission": bson.M{"bsonType": "string", "enum": bson.A{"storage_areas.read", "storage_areas.manage"}}, "allowed": bson.M{"bsonType": "bool"}},
+						"properties": bson.M{"permission": bson.M{"bsonType": "string", "enum": bson.A{"storage_areas.read", "storage_areas.manage", "catalog.read", "catalog.manage"}}, "allowed": bson.M{"bsonType": "bool"}},
 					}},
 					"status":  bson.M{"bsonType": "string", "enum": bson.A{"active", "inactive"}},
 					"version": bson.M{"bsonType": "long", "minimum": 1}, "createdAt": bson.M{"bsonType": "date"}, "updatedAt": bson.M{"bsonType": "date"},

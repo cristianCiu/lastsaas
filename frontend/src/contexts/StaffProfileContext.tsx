@@ -8,6 +8,7 @@ import { staffProfileKeys } from '../features/staff-profiles/queries';
 import type { StaffProfile } from '../features/staff-profiles/types';
 import { storageAreaKeys } from '../features/storage-areas/queries';
 import { teamKeys } from '../features/team/queries';
+import { masterDataKeys } from '../features/master-data/queries';
 
 interface StaffProfileContextValue {
   profile: StaffProfile | null;
@@ -37,6 +38,7 @@ export function StaffProfileProvider({ principalId, tenantId, enabled, children 
       queryClient.removeQueries({ queryKey: locationKeys.all, predicate: belongsToPreviousPrincipal });
       queryClient.removeQueries({ queryKey: storageAreaKeys.all, predicate: belongsToPreviousPrincipal });
       queryClient.removeQueries({ queryKey: teamKeys.all, predicate: (query) => query.queryKey[2] === previousId });
+      queryClient.removeQueries({ queryKey: masterDataKeys.all, predicate: belongsToPreviousPrincipal });
     }
     previousPrincipal.current = principalId;
   }, [principalId, queryClient]);

@@ -73,6 +73,30 @@ func TestIntegrationRestaurantSchemasRejectMalformedDocuments(t *testing.T) {
 	}
 }
 
+func TestIntegrationUnitsSchemaRejectsMalformedDocuments(t *testing.T) {
+	database, cleanup := testutil.MustConnectTestDB(t)
+	defer cleanup()
+	if err := database.EnsureSchemaValidation(); err != nil {
+		t.Fatalf("apply schema validation: %v", err)
+	}
+	now := time.Now()
+	base := bson.M{"_id": primitive.NewObjectID(), "tenantId": primitive.NewObjectID(), "code": "kg", "name": "Kilogram", "symbol": "kg", "dimension": "mass", "precision": int32(3), "isActive": true, "version": int64(1), "createdAt": now, "updatedAt": now}
+	if _, err := database.Units().InsertOne(context.Background(), base); err != nil {
+		t.Fatalf("insert valid unit: %v", err)
+	}
+	invalid := bson.M{}
+	for key, value := range base {
+		invalid[key] = value
+	}
+	invalid["_id"] = primitive.NewObjectID()
+	invalid["code"] = "INVALID CODE"
+	invalid["precision"] = int32(7)
+	invalid["unexpected"] = true
+	if _, err := database.Units().InsertOne(context.Background(), invalid); err == nil {
+		t.Fatal("expected malformed unit to be rejected")
+	}
+}
+
 func TestIntegrationTenantBrandingSchemaRejectsUnsafeTokens(t *testing.T) {
 	database, cleanup := testutil.MustConnectTestDB(t)
 	defer cleanup()

@@ -1,8 +1,8 @@
 import { z } from 'zod';
-import { BUSINESS_ROLES, STORAGE_PERMISSIONS } from './types';
+import { BUSINESS_PERMISSIONS, BUSINESS_ROLES } from './types';
 
 const permissionOverrideSchema = z.object({
-  permission: z.enum(STORAGE_PERMISSIONS),
+  permission: z.enum(BUSINESS_PERMISSIONS),
   allowed: z.boolean(),
 });
 const objectIdSchema = z.string().regex(/^[a-f\d]{24}$/i);
@@ -18,7 +18,7 @@ export const staffProfileSchema = z.object({
   version: z.number().int().min(1),
   createdAt: z.iso.datetime({ offset: true }),
   updatedAt: z.iso.datetime({ offset: true }),
-  effectivePermissions: z.array(z.enum(STORAGE_PERMISSIONS)),
+  effectivePermissions: z.array(z.enum(BUSINESS_PERMISSIONS)),
 });
 
 export const staffProfileResponseSchema = z.object({ staffProfile: staffProfileSchema });

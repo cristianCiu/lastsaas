@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { MapPinned, MapPin, Paintbrush, Settings, Utensils, Warehouse } from 'lucide-react';
+import { Database, MapPinned, MapPin, Paintbrush, Settings, Utensils, Warehouse } from 'lucide-react';
 
 const items = [
   { path: '/settings', label: 'Account', icon: Settings, end: true },
@@ -8,11 +8,12 @@ const items = [
   { path: '/settings/location-branding', label: 'Location brand', icon: MapPinned },
   { path: '/settings/locations', label: 'Locations', icon: MapPin },
   { path: '/settings/storage-areas', label: 'Storage areas', icon: Warehouse },
+  { path: '/settings/master-data/units', label: 'Master data', icon: Database },
 ];
 
 export default function WorkspaceSettingsNav() {
   return (
-    <nav aria-label="Settings sections" className="grid grid-cols-2 gap-1 rounded-xl border border-dark-800 bg-dark-900/50 p-1 sm:grid-cols-3 lg:grid-cols-6">
+    <nav aria-label="Settings sections" className="grid grid-cols-2 gap-1 rounded-xl border border-dark-800 bg-dark-900/50 p-1 sm:grid-cols-3 lg:grid-cols-7">
       {items.map((item) => (
         <NavLink
           key={item.path}

@@ -52,6 +52,9 @@ func RegisterRoutes(guarded *mux.Router, database *db.MongoDB, auth *middleware.
 	productAPI.Handle("/locations", withProductMiddleware(http.HandlerFunc(handler.list), requireProfile)).Methods(http.MethodGet)
 	productAPI.Handle("/staff-profiles", withProductMiddleware(http.HandlerFunc(handler.listStaffProfiles), requireProfile, requireCoreRole(models.RoleAdmin))).Methods(http.MethodGet)
 	productAPI.Handle("/staff-profiles/{userId}", withProductMiddleware(http.HandlerFunc(handler.replaceStaffProfile), requireProfile, requireCoreRole(models.RoleAdmin))).Methods(http.MethodPut)
+	productAPI.Handle("/units", withProductMiddleware(http.HandlerFunc(handler.listUnits), requireProfile, RequireBusinessPermission(models.PermissionCatalogRead))).Methods(http.MethodGet)
+	productAPI.Handle("/units", withProductMiddleware(http.HandlerFunc(handler.createUnit), requireProfile, RequireBusinessPermission(models.PermissionCatalogManage))).Methods(http.MethodPost)
+	productAPI.Handle("/units/{unitId}", withProductMiddleware(http.HandlerFunc(handler.updateUnit), requireProfile, RequireBusinessPermission(models.PermissionCatalogManage))).Methods(http.MethodPatch)
 
 	requireLocation := RequireAuthorizedLocation(database, "locationId")
 	productAPI.Handle("/locations/{locationId}", withProductMiddleware(http.HandlerFunc(handler.update), requireProfile, requireCoreRole(models.RoleAdmin), requireLocation)).Methods(http.MethodPatch)

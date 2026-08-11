@@ -77,6 +77,9 @@ func init() {
 	v.RegisterValidation("storage_area_type", func(fl validator.FieldLevel) bool {
 		return models.ValidStorageAreaType(models.StorageAreaType(fl.Field().String()))
 	})
+	v.RegisterValidation("unit_dimension", func(fl validator.FieldLevel) bool {
+		return models.ValidUnitDimension(models.UnitDimension(fl.Field().String()))
+	})
 	v.RegisterValidation("business_role", func(fl validator.FieldLevel) bool {
 		return models.ValidBusinessRole(models.BusinessRole(fl.Field().String()))
 	})
