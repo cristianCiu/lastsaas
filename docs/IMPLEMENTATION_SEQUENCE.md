@@ -52,3 +52,5 @@ Exit requires green non-database gates. Database integration and E2E gates must 
 Steps 1-4 are complete in v1.4.0. Step 5 and the Phase 1 entitlement/isolation hardening are complete in v1.5.0.
 
 Phase 2 is active. Later phases continue in `WARENWIRTSCHAFT_SAAS_BAUPLAN.md`, preserving the order: master data, inventory journal, recipes/sales, purchasing, forecasting, then pilot hardening.
+
+The v1.6.0 slice establishes tenant-owned units, fixed micro-unit arithmetic, and catalog permissions. Categories, items, item-specific conversions, suppliers, and imports remain active Phase 2 work.

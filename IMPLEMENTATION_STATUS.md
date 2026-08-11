@@ -54,6 +54,12 @@ Phase 2: master data and import foundation.
 - Product settings and location mutations require active staff profiles; location updates additionally require assigned-location access and preserve indistinguishable not-found isolation.
 - Authenticated Atlas coverage proves tenant-scoped onboarding, ordinary-plan branding allow/deny/downgrade behavior, restricted/inactive staff denial, and unchanged cross-tenant resources.
 - Frontend verification now covers 64 tests across twenty files; lint, type-check, and the production build pass.
+- ADR 0007 fixes tenant-owned catalog scope, signed micro-unit quantity storage, exact rational conversion policy, canonical codes, and shared catalog permissions.
+- Central quantity arithmetic parses/formats six-decimal fixed-point values and rejects overflow, malformed decimals, invalid factors, and inexact rational results without binary floats.
+- Tenant unit catalogs support mass, volume, and count dimensions, canonical unique codes, 0-6 display precision, optimistic updates, soft lifecycle changes, audit events, strict critical schema/index enforcement, and non-leaking tenant scope.
+- `catalog.read` and `catalog.manage` extend staff-profile defaults and explicit override enforcement across backend and frontend team management.
+- Responsive unit management includes loading, empty, error, denied, read-only, create, edit, deactivate/reactivate, conflict, and tenant-switch-safe states.
+- Frontend verification now covers 68 tests across twenty-two files; lint, type-check, and the production build pass. Focused Atlas unit lifecycle, permission, isolation, and schema-rejection tests pass.
 
 ## Baseline Fixes
 
@@ -71,7 +77,7 @@ Phase 2: master data and import foundation.
 
 ## Active Task
 
-Implement Phase 2 fixed-point units, categories, item master data, supplier purchasing terms, and the idempotent CSV import foundation.
+Implement tenant categories and item master data on the exact unit foundation, followed by item-specific conversions, supplier purchasing terms, and idempotent CSV imports.
 
 ## Known Follow-Ups
 

@@ -1,5 +1,16 @@
 # LastSaaS Version Notes
 
+## v1.6.0 — August 11, 2026
+
+### Exact Unit Catalog
+- **Tenant-owned units** (`991d275`) — mass, volume, and count units with canonical tenant-unique codes, symbols, 0-6 display precision, optimistic versions, and soft lifecycle management.
+- **Fixed-point quantity core** — signed `int64` micro-units with exact decimal parsing/formatting, checked add/subtract, rational conversion, overflow detection, and explicit rejection of inexact results.
+- **Catalog authorization** — `catalog.read` and `catalog.manage` permissions follow active staff profiles, role defaults, and explicit allow/deny overrides.
+- **Responsive management** — tenant-safe React Query caches and complete loading, empty, error, denied, read-only, create, edit, lifecycle, and conflict states.
+- **Verification** — 68 frontend tests pass with build/lint; focused Atlas lifecycle, permission, tenant-isolation, unique-index, and strict-schema tests pass.
+
+---
+
 ## v1.5.0 — August 11, 2026
 
 ### Guided Restaurant Onboarding
