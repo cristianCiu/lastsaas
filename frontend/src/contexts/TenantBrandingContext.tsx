@@ -2,12 +2,20 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from './AuthContext';
 import { useTenant } from './TenantContext';
+import { useActiveLocation } from './ActiveLocationContext';
+import { locationBrandingApi } from '../features/location-branding/api';
+import { locationBrandingKeys } from '../features/location-branding/queries';
+import type { ResolvedLocationBranding } from '../features/location-branding/types';
 import { tenantBrandingApi } from '../features/tenant-branding/api';
 import { tenantBrandingKeys } from '../features/tenant-branding/queries';
 import type { TenantBranding, TenantBrandingAsset, TenantBrandingAssetKind } from '../features/tenant-branding/types';
 
 interface TenantBrandingContextValue {
   branding: TenantBranding | null;
+  effectiveBranding: TenantBranding | ResolvedLocationBranding | null;
+  resolvedLocationBranding: ResolvedLocationBranding | null;
+  locationBrandingLoading: boolean;
+  locationBrandingError: unknown;
   loading: boolean;
   error: unknown;
   assets: TenantBrandingAsset[];
@@ -36,9 +44,11 @@ function useScopedObjectUrl(blob: Blob | undefined, scopeKey: string): string | 
 export function TenantBrandingProvider({ children }: { children: ReactNode }) {
   const { user, isAuthenticated } = useAuth();
   const { activeTenant, isRootTenant } = useTenant();
+  const { activeLocation } = useActiveLocation();
   const queryClient = useQueryClient();
   const principalId = user?.id ?? '';
   const tenantId = activeTenant?.tenantId ?? '';
+  const locationId = activeLocation?.id ?? '';
   const enabled = isAuthenticated && !!principalId && !!tenantId && !isRootTenant;
   const previousScope = useRef<{ principalId: string; tenantId: string } | null>(null);
 
@@ -47,6 +57,10 @@ export function TenantBrandingProvider({ children }: { children: ReactNode }) {
     if (previous && (previous.principalId !== principalId || previous.tenantId !== tenantId)) {
       queryClient.removeQueries({
         queryKey: tenantBrandingKeys.all,
+        predicate: (query) => query.queryKey[2] === previous.principalId && query.queryKey[3] === previous.tenantId,
+      });
+      queryClient.removeQueries({
+        queryKey: locationBrandingKeys.all,
         predicate: (query) => query.queryKey[2] === previous.principalId && query.queryKey[3] === previous.tenantId,
       });
     }
@@ -62,6 +76,11 @@ export function TenantBrandingProvider({ children }: { children: ReactNode }) {
     queryKey: tenantBrandingKeys.assets(principalId, tenantId),
     queryFn: () => tenantBrandingApi.listAssets(),
     enabled,
+  });
+  const locationBrandingQuery = useQuery({
+    queryKey: locationBrandingKeys.detail(principalId, tenantId, locationId),
+    queryFn: () => locationBrandingApi.get(locationId),
+    enabled: enabled && !!locationId,
   });
   const assets = enabled ? assetsQuery.data?.assets ?? [] : [];
   const getAsset = (kind: TenantBrandingAssetKind) => assets.find((asset) => asset.kind === kind);
@@ -81,9 +100,16 @@ export function TenantBrandingProvider({ children }: { children: ReactNode }) {
   const primaryLogoUrl = useScopedObjectUrl(enabled ? primaryQuery.data : undefined, `${scopeKey}:primary:${primary?.version ?? 0}`);
   const compactLogoUrl = useScopedObjectUrl(enabled ? compactQuery.data : undefined, `${scopeKey}:compact:${compact?.version ?? 0}`);
 
+  const tenantBranding = enabled ? brandingQuery.data?.branding ?? null : null;
+  const resolvedLocationBranding = enabled && locationId ? locationBrandingQuery.data?.resolved ?? null : null;
+
   return (
     <TenantBrandingContext.Provider value={{
-      branding: enabled ? brandingQuery.data?.branding ?? null : null,
+      branding: tenantBranding,
+      effectiveBranding: resolvedLocationBranding ?? tenantBranding,
+      resolvedLocationBranding,
+      locationBrandingLoading: enabled && !!locationId && locationBrandingQuery.isPending,
+      locationBrandingError: enabled && !!locationId ? locationBrandingQuery.error : null,
       loading: enabled && brandingQuery.isPending,
       error: enabled ? brandingQuery.error : null,
       assets,

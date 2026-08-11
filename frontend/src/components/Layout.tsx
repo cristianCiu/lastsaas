@@ -25,7 +25,7 @@ export default function Layout() {
   const { activeTenant, setActiveTenant, isRootTenant } = useTenant();
   const { locations, loading: locationsLoading, error: locationsError, activeLocation, setActiveLocation } = useActiveLocation();
   const { branding } = useBranding();
-  const { primaryLogoUrl, compactLogoUrl } = useTenantBranding();
+  const { primaryLogoUrl, compactLogoUrl, resolvedLocationBranding } = useTenantBranding();
   const { resolvedTheme, setTheme } = useTheme();
   const [showTenantMenu, setShowTenantMenu] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -116,7 +116,9 @@ export default function Layout() {
   const logoUrl = branding.logoUrl;
   const tenantDesktopLogo = !isRootTenant ? primaryLogoUrl || compactLogoUrl : null;
   const tenantMobileLogo = !isRootTenant ? compactLogoUrl || primaryLogoUrl : null;
-  const workspaceName = tenantDesktopLogo || tenantMobileLogo ? activeTenant?.tenantName ?? appName : appName;
+  const workspaceName = !isRootTenant
+    ? resolvedLocationBranding?.displayName || activeTenant?.tenantName || appName
+    : appName;
 
   const isImpersonating = localStorage.getItem('lastsaas_impersonating') === 'true';
 

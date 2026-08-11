@@ -62,7 +62,7 @@ const isValidHex = (c: string) => /^#[0-9a-fA-F]{6}$/.test(c);
 
 export default function BrandingThemeInjector() {
   const { branding, loaded } = useBranding();
-  const { branding: tenantBranding } = useTenantBranding();
+  const { effectiveBranding } = useTenantBranding();
   const location = useLocation();
   const isAdmin = location.pathname.startsWith('/last');
   const isWorkspace = /^\/(dashboard|team|plan|buy-credits|billing|settings|activity|messages|onboarding)(?:\/|$)/.test(location.pathname);
@@ -72,7 +72,7 @@ export default function BrandingThemeInjector() {
     if (!loaded) return;
     const root = document.documentElement;
 
-    const tenantTokens = isWorkspace && !isAdmin ? tenantBranding : null;
+    const tenantTokens = isWorkspace && !isAdmin ? effectiveBranding : null;
     const primaryColor = tenantTokens?.primaryColor || branding.primaryColor;
     if (primaryColor && isValidHex(primaryColor)) {
       const palette = generatePalette(primaryColor);
@@ -103,7 +103,7 @@ export default function BrandingThemeInjector() {
       root.style.removeProperty('--font-heading');
       root.style.removeProperty('--color-accent-purple');
     };
-  }, [loaded, branding.primaryColor, branding.fontFamily, branding.headingFont, tenantBranding, isAdmin, isWorkspace]);
+  }, [loaded, branding.primaryColor, branding.fontFamily, branding.headingFont, effectiveBranding, isAdmin, isWorkspace]);
 
   // Update page title
   useEffect(() => {

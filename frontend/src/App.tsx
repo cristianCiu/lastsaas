@@ -41,6 +41,7 @@ import LocationsPage from './features/locations/LocationsPage';
 import RestaurantSettingsPage from './features/restaurant-settings/RestaurantSettingsPage';
 import StorageAreasPage from './features/storage-areas/StorageAreasPage';
 import TenantBrandingPage from './features/tenant-branding/TenantBrandingPage';
+import LocationBrandingPage from './features/location-branding/LocationBrandingPage';
 
 // Admin pages (lazy — only loaded by root tenant admins)
 const AdminDashboardPage = lazy(() => import('./pages/admin/DashboardPage'));
@@ -168,6 +169,7 @@ export default function App() {
                         <Route path="/settings/locations" element={<LocationsPage />} />
                         <Route path="/settings/restaurant" element={<RestaurantSettingsPage />} />
                         <Route path="/settings/branding" element={<TenantBrandingPage />} />
+                        <Route path="/settings/location-branding" element={<LocationBrandingPage />} />
                         <Route path="/settings/storage-areas" element={<StorageAreasPage />} />
                         <Route path="/activity" element={<ActivityPage />} />
                         <Route path="/test-entitlements" element={<TestEntitlementsPage />} />
