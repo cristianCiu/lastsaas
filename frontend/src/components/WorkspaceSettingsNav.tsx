@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { Database, MapPinned, MapPin, Paintbrush, Settings, Utensils, Warehouse } from 'lucide-react';
+import { Database, FileUp, Link2, MapPinned, MapPin, Package, Paintbrush, Receipt, Settings, Tags, Truck, Utensils, Warehouse } from 'lucide-react';
 
 const items = [
   { path: '/settings', label: 'Account', icon: Settings, end: true },
@@ -9,11 +9,17 @@ const items = [
   { path: '/settings/locations', label: 'Locations', icon: MapPin },
   { path: '/settings/storage-areas', label: 'Storage areas', icon: Warehouse },
   { path: '/settings/master-data/units', label: 'Master data', icon: Database },
+  { path: '/settings/master-data/categories', label: 'Categories', icon: Tags },
+  { path: '/settings/master-data/items', label: 'Items', icon: Package },
+  { path: '/settings/master-data/conversions', label: 'Conversions', icon: Link2 },
+  { path: '/settings/master-data/suppliers', label: 'Suppliers', icon: Truck },
+  { path: '/settings/master-data/supplier-terms', label: 'Supplier terms', icon: Receipt },
+  { path: '/settings/imports', label: 'Imports', icon: FileUp },
 ];
 
 export default function WorkspaceSettingsNav() {
   return (
-    <nav aria-label="Settings sections" className="grid grid-cols-2 gap-1 rounded-xl border border-dark-800 bg-dark-900/50 p-1 sm:grid-cols-3 lg:grid-cols-7">
+    <nav aria-label="Settings sections" className="grid grid-cols-2 gap-1 rounded-xl border border-dark-800 bg-dark-900/50 p-1 sm:grid-cols-3 lg:grid-cols-12">
       {items.map((item) => (
         <NavLink
           key={item.path}

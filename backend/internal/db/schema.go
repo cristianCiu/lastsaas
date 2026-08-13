@@ -44,6 +44,116 @@ func AllSchemas() []CollectionSchema {
 		storageAreasSchema(),
 		staffProfilesSchema(),
 		unitsSchema(),
+		categoriesSchema(),
+		itemsSchema(),
+		itemConversionsSchema(),
+		suppliersSchema(),
+		supplierItemsSchema(),
+		importRunsSchema(),
+	}
+}
+
+func importRunsSchema() CollectionSchema {
+	return CollectionSchema{Collection: "import_runs", Critical: true, ValidationLevel: "strict", Schema: bson.M{"$jsonSchema": bson.M{
+		"bsonType": "object", "additionalProperties": false,
+		"required": bson.A{"_id", "tenantId", "userId", "target", "idempotencyKey", "status", "totalRows", "createdRows", "updatedRows", "errors", "createdAt", "updatedAt"},
+		"properties": bson.M{
+			"_id": bson.M{"bsonType": "objectId"}, "tenantId": bson.M{"bsonType": "objectId"}, "userId": bson.M{"bsonType": "objectId"},
+			"target":         bson.M{"bsonType": "string", "enum": bson.A{"units", "categories", "items", "suppliers", "supplier_items"}},
+			"idempotencyKey": bson.M{"bsonType": "string", "minLength": 8, "maxLength": 128},
+			"status":         bson.M{"bsonType": "string", "enum": bson.A{"pending", "completed", "failed"}},
+			"totalRows":      bson.M{"bsonType": "int", "minimum": 0, "maximum": 5000}, "createdRows": bson.M{"bsonType": "int", "minimum": 0, "maximum": 5000}, "updatedRows": bson.M{"bsonType": "int", "minimum": 0, "maximum": 5000},
+			"errors": bson.M{"bsonType": "array", "maxItems": 100, "items": bson.M{"bsonType": "object", "additionalProperties": false, "required": bson.A{"row", "field", "code", "message"}, "properties": bson.M{
+				"row": bson.M{"bsonType": "int", "minimum": 2, "maximum": 5001}, "field": bson.M{"bsonType": "string", "maxLength": 64}, "code": bson.M{"bsonType": "string", "maxLength": 64}, "message": bson.M{"bsonType": "string", "maxLength": 240},
+			}}},
+			"createdAt": bson.M{"bsonType": "date"}, "updatedAt": bson.M{"bsonType": "date"},
+		},
+	}}}
+}
+
+func suppliersSchema() CollectionSchema {
+	return CollectionSchema{Collection: "suppliers", Critical: true, ValidationLevel: "strict", Schema: bson.M{"$jsonSchema": bson.M{
+		"bsonType": "object", "additionalProperties": false,
+		"required": bson.A{"_id", "tenantId", "code", "name", "defaultLeadTimeDays", "isActive", "version", "createdAt", "updatedAt"},
+		"properties": bson.M{
+			"_id": bson.M{"bsonType": "objectId"}, "tenantId": bson.M{"bsonType": "objectId"},
+			"code": bson.M{"bsonType": "string", "pattern": `^[a-z0-9]+(?:-[a-z0-9]+)*$`, "maxLength": 64}, "name": bson.M{"bsonType": "string", "pattern": `.*\S.*`, "maxLength": 160},
+			"contactName": bson.M{"bsonType": "string", "maxLength": 100}, "email": bson.M{"bsonType": "string", "maxLength": 254, "pattern": `^[^@\s]+@[^@\s]+\.[^@\s]+$`}, "phone": bson.M{"bsonType": "string", "maxLength": 32},
+			"orderingDays": bson.M{"bsonType": "array", "uniqueItems": true, "items": bson.M{"bsonType": "int", "minimum": 1, "maximum": 7}}, "defaultLeadTimeDays": bson.M{"bsonType": "int", "minimum": 0, "maximum": 3650},
+			"isActive": bson.M{"bsonType": "bool"}, "version": bson.M{"bsonType": "long", "minimum": 1}, "createdAt": bson.M{"bsonType": "date"}, "updatedAt": bson.M{"bsonType": "date"},
+		},
+	}}}
+}
+
+func supplierItemsSchema() CollectionSchema {
+	return CollectionSchema{Collection: "supplier_items", Critical: true, ValidationLevel: "strict", Schema: bson.M{"$jsonSchema": bson.M{
+		"bsonType": "object", "additionalProperties": false,
+		"required": bson.A{"_id", "tenantId", "supplierId", "itemId", "packSizeMicros", "moq", "unitPriceMinor", "currency", "isActive", "version", "createdAt", "updatedAt"},
+		"properties": bson.M{
+			"_id": bson.M{"bsonType": "objectId"}, "tenantId": bson.M{"bsonType": "objectId"}, "supplierId": bson.M{"bsonType": "objectId"}, "itemId": bson.M{"bsonType": "objectId"},
+			"supplierSKU": bson.M{"bsonType": "string", "maxLength": 100}, "packSizeMicros": bson.M{"bsonType": "long", "minimum": 1}, "moq": bson.M{"bsonType": "int", "minimum": 1, "maximum": 1000000},
+			"unitPriceMinor": bson.M{"bsonType": "long", "minimum": 0}, "currency": bson.M{"bsonType": "string", "pattern": `^[A-Z]{3}$`}, "leadTimeDays": bson.M{"bsonType": "int", "minimum": 0, "maximum": 3650},
+			"isActive": bson.M{"bsonType": "bool"}, "version": bson.M{"bsonType": "long", "minimum": 1}, "createdAt": bson.M{"bsonType": "date"}, "updatedAt": bson.M{"bsonType": "date"},
+		},
+	}}}
+}
+
+func itemConversionsSchema() CollectionSchema {
+	return CollectionSchema{
+		Collection: "item_conversions", Critical: true, ValidationLevel: "strict",
+		Schema: bson.M{"$jsonSchema": bson.M{
+			"bsonType": "object", "additionalProperties": false,
+			"required": bson.A{"_id", "tenantId", "itemId", "fromUnitId", "numerator", "denominator", "isActive", "version", "createdAt", "updatedAt"},
+			"properties": bson.M{
+				"_id": bson.M{"bsonType": "objectId"}, "tenantId": bson.M{"bsonType": "objectId"},
+				"itemId": bson.M{"bsonType": "objectId"}, "fromUnitId": bson.M{"bsonType": "objectId"},
+				"numerator":   bson.M{"bsonType": "long", "minimum": 1, "maximum": 1000000000},
+				"denominator": bson.M{"bsonType": "long", "minimum": 1, "maximum": 1000000000},
+				"isActive":    bson.M{"bsonType": "bool"}, "version": bson.M{"bsonType": "long", "minimum": 1},
+				"createdAt": bson.M{"bsonType": "date"}, "updatedAt": bson.M{"bsonType": "date"},
+			},
+		}},
+	}
+}
+
+func itemsSchema() CollectionSchema {
+	return CollectionSchema{
+		Collection: "items", Critical: true, ValidationLevel: "strict",
+		Schema: bson.M{"$jsonSchema": bson.M{
+			"bsonType": "object", "additionalProperties": false,
+			"required": bson.A{"_id", "tenantId", "sku", "name", "categoryId", "baseUnitId", "stockable", "isActive", "version", "createdAt", "updatedAt"},
+			"properties": bson.M{
+				"_id": bson.M{"bsonType": "objectId"}, "tenantId": bson.M{"bsonType": "objectId"},
+				"sku":         bson.M{"bsonType": "string", "pattern": `^[a-z0-9]+(?:-[a-z0-9]+)*$`, "maxLength": 64},
+				"name":        bson.M{"bsonType": "string", "pattern": `.*\S.*`, "maxLength": 160},
+				"description": bson.M{"bsonType": "string", "maxLength": 2000},
+				"brand":       bson.M{"bsonType": "string", "maxLength": 100},
+				"categoryId":  bson.M{"bsonType": "objectId"}, "baseUnitId": bson.M{"bsonType": "objectId"},
+				"allergens": bson.M{"bsonType": "array", "uniqueItems": true, "items": bson.M{"bsonType": "string", "enum": bson.A{
+					"celery", "cereals-gluten", "crustaceans", "eggs", "fish", "lupin", "milk", "molluscs", "mustard", "nuts", "peanuts", "sesame", "soy", "sulphites",
+				}}},
+				"shelfLifeDays": bson.M{"bsonType": "int", "minimum": 0, "maximum": 36500},
+				"stockable":     bson.M{"bsonType": "bool"}, "isActive": bson.M{"bsonType": "bool"},
+				"version": bson.M{"bsonType": "long", "minimum": 1}, "createdAt": bson.M{"bsonType": "date"}, "updatedAt": bson.M{"bsonType": "date"},
+			},
+		}},
+	}
+}
+
+func categoriesSchema() CollectionSchema {
+	return CollectionSchema{
+		Collection: "categories", Critical: true, ValidationLevel: "strict",
+		Schema: bson.M{"$jsonSchema": bson.M{
+			"bsonType": "object", "additionalProperties": false,
+			"required": bson.A{"_id", "tenantId", "code", "name", "isActive", "version", "createdAt", "updatedAt"},
+			"properties": bson.M{
+				"_id": bson.M{"bsonType": "objectId"}, "tenantId": bson.M{"bsonType": "objectId"},
+				"code":     bson.M{"bsonType": "string", "pattern": `^[a-z0-9]+(?:-[a-z0-9]+)*$`, "maxLength": 32},
+				"name":     bson.M{"bsonType": "string", "pattern": `.*\S.*`, "maxLength": 100},
+				"isActive": bson.M{"bsonType": "bool"}, "version": bson.M{"bsonType": "long", "minimum": 1},
+				"createdAt": bson.M{"bsonType": "date"}, "updatedAt": bson.M{"bsonType": "date"},
+			},
+		}},
 	}
 }
 

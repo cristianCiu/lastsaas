@@ -44,6 +44,12 @@ import TenantBrandingPage from './features/tenant-branding/TenantBrandingPage';
 import LocationBrandingPage from './features/location-branding/LocationBrandingPage';
 import OnboardingGate from './features/onboarding/OnboardingGate';
 import UnitsPage from './features/master-data/UnitsPage';
+import CategoriesPage from './features/master-data/CategoriesPage';
+import ItemsPage from './features/master-data/ItemsPage';
+import ConversionsPage from './features/master-data/ConversionsPage';
+import SuppliersPage from './features/master-data/SuppliersPage';
+import SupplierTermsPage from './features/master-data/SupplierTermsPage';
+import ImportsPage from './features/imports/ImportsPage';
 
 // Admin pages (lazy — only loaded by root tenant admins)
 const AdminDashboardPage = lazy(() => import('./pages/admin/DashboardPage'));
@@ -175,6 +181,12 @@ export default function App() {
                         <Route path="/settings/location-branding" element={<LocationBrandingPage />} />
                         <Route path="/settings/storage-areas" element={<StorageAreasPage />} />
                         <Route path="/settings/master-data/units" element={<UnitsPage />} />
+                        <Route path="/settings/master-data/categories" element={<CategoriesPage />} />
+                        <Route path="/settings/master-data/items" element={<ItemsPage />} />
+                        <Route path="/settings/master-data/conversions" element={<ConversionsPage />} />
+                        <Route path="/settings/master-data/suppliers" element={<SuppliersPage />} />
+                        <Route path="/settings/master-data/supplier-terms" element={<SupplierTermsPage />} />
+                        <Route path="/settings/imports" element={<ImportsPage />} />
                         <Route path="/activity" element={<ActivityPage />} />
                         <Route path="/test-entitlements" element={<TestEntitlementsPage />} />
                         <Route path="/messages" element={<Suspense fallback={<LazyFallback />}><AdminMessagesPage /></Suspense>} />

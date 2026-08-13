@@ -15,10 +15,16 @@ import (
 var v *validator.Validate
 
 var (
-	locationCodePattern = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
-	currencyCodePattern = regexp.MustCompile(`^[A-Z]{3}$`)
-	languageTagPattern  = regexp.MustCompile(`^[a-z]{2}(?:-[A-Z]{2})?$`)
-	hexColorPattern     = regexp.MustCompile(`^#[0-9a-f]{6}$`)
+	locationCodePattern  = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
+	currencyCodePattern  = regexp.MustCompile(`^[A-Z]{3}$`)
+	languageTagPattern   = regexp.MustCompile(`^[a-z]{2}(?:-[A-Z]{2})?$`)
+	supplierEmailPattern = regexp.MustCompile(`^[^@\s]+@[^@\s]+\.[^@\s]+$`)
+	hexColorPattern      = regexp.MustCompile(`^#[0-9a-f]{6}$`)
+	euAllergenCodes      = map[string]struct{}{
+		"celery": {}, "cereals-gluten": {}, "crustaceans": {}, "eggs": {}, "fish": {},
+		"lupin": {}, "milk": {}, "molluscs": {}, "mustard": {}, "nuts": {},
+		"peanuts": {}, "sesame": {}, "soy": {}, "sulphites": {},
+	}
 )
 
 func init() {
@@ -68,6 +74,13 @@ func init() {
 	v.RegisterValidation("location_code", func(fl validator.FieldLevel) bool {
 		return locationCodePattern.MatchString(fl.Field().String())
 	})
+	v.RegisterValidation("not_blank", func(fl validator.FieldLevel) bool {
+		return strings.TrimSpace(fl.Field().String()) != ""
+	})
+	v.RegisterValidation("eu_allergen", func(fl validator.FieldLevel) bool {
+		_, ok := euAllergenCodes[fl.Field().String()]
+		return ok
+	})
 	v.RegisterValidation("currency_code", func(fl validator.FieldLevel) bool {
 		return currencyCodePattern.MatchString(fl.Field().String())
 	})
@@ -79,6 +92,9 @@ func init() {
 	})
 	v.RegisterValidation("unit_dimension", func(fl validator.FieldLevel) bool {
 		return models.ValidUnitDimension(models.UnitDimension(fl.Field().String()))
+	})
+	v.RegisterValidation("supplier_email", func(fl validator.FieldLevel) bool {
+		return supplierEmailPattern.MatchString(fl.Field().String())
 	})
 	v.RegisterValidation("business_role", func(fl validator.FieldLevel) bool {
 		return models.ValidBusinessRole(models.BusinessRole(fl.Field().String()))
@@ -107,6 +123,40 @@ func init() {
 		return err == nil
 	})
 	v.RegisterStructValidation(validateStaffProfile, models.StaffProfile{})
+	v.RegisterStructValidation(validateItem, models.Item{})
+	v.RegisterStructValidation(validateSupplier, models.Supplier{})
+	v.RegisterValidation("import_target", func(fl validator.FieldLevel) bool {
+		return models.ValidImportTarget(models.ImportTarget(fl.Field().String()))
+	})
+	v.RegisterValidation("import_run_status", func(fl validator.FieldLevel) bool {
+		return models.ImportRunStatus(fl.Field().String()) == models.ImportRunCompleted ||
+			models.ImportRunStatus(fl.Field().String()) == models.ImportRunPending ||
+			models.ImportRunStatus(fl.Field().String()) == models.ImportRunFailed
+	})
+}
+
+func validateSupplier(sl validator.StructLevel) {
+	supplier := sl.Current().Interface().(models.Supplier)
+	seen := make(map[int32]struct{}, len(supplier.OrderingDays))
+	for _, day := range supplier.OrderingDays {
+		if _, exists := seen[day]; exists {
+			sl.ReportError(supplier.OrderingDays, "OrderingDays", "orderingDays", "unique", "")
+			return
+		}
+		seen[day] = struct{}{}
+	}
+}
+
+func validateItem(sl validator.StructLevel) {
+	item := sl.Current().Interface().(models.Item)
+	seen := make(map[string]struct{}, len(item.Allergens))
+	for _, allergen := range item.Allergens {
+		if _, exists := seen[allergen]; exists {
+			sl.ReportError(item.Allergens, "Allergens", "allergens", "unique", "")
+			return
+		}
+		seen[allergen] = struct{}{}
+	}
 }
 
 func validateStaffProfile(sl validator.StructLevel) {

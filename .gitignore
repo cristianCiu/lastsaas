@@ -42,3 +42,6 @@ dist/
 
 # MCP registry tokens
 .mcpregistry_*
+
+# Local deepwork progress
+.slim/deepwork/

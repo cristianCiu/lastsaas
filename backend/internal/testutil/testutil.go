@@ -255,7 +255,7 @@ func CleanupCollections(t *testing.T, database *db.MongoDB) {
 		"webauthn_credentials", "webauthn_sessions", "sso_connections",
 		"announcements", "usage_events", "rate_limits",
 		"locations", "restaurant_settings", "storage_areas",
-		"staff_profiles",
+		"staff_profiles", "categories", "items", "item_conversions", "suppliers", "supplier_items", "import_runs",
 	}
 	for _, name := range collections {
 		database.Database.Collection(name).DeleteMany(ctx, bson.M{})

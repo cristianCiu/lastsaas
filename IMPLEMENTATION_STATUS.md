@@ -9,7 +9,7 @@ Phase 2: master data and import foundation.
 - Fork checkout configured with `origin` and `upstream` remotes.
 - Go 1.25 and locked frontend dependencies installed for local development.
 - Backend build and short-mode unit tests pass.
-- Frontend unit tests, lint, and production build pass.
+- Frontend TypeScript checking, lint, and production build pass; the current Vitest run is environment-blocked by fork-worker timeouts.
 - Frontend dependencies updated within declared semver ranges; `npm audit` reports zero vulnerabilities.
 - Direct-fork single-image deployment decision recorded and contradictory two-backend guidance removed.
 - Product sequence refined to establish tenant/location security before safe tenant branding.
@@ -60,6 +60,30 @@ Phase 2: master data and import foundation.
 - `catalog.read` and `catalog.manage` extend staff-profile defaults and explicit override enforcement across backend and frontend team management.
 - Responsive unit management includes loading, empty, error, denied, read-only, create, edit, deactivate/reactivate, conflict, and tenant-switch-safe states.
 - Frontend verification now covers 68 tests across twenty-two files; lint, type-check, and the production build pass. Focused Atlas unit lifecycle, permission, isolation, and schema-rejection tests pass.
+- Tenant-wide flat categories support canonical unique codes, active/inactive lifecycle state, optimistic updates, and tenant-safe non-leaking repository scope.
+- Category endpoints enforce the shared `catalog.read` and `catalog.manage` permissions, with auditable create, update, deactivate, and reactivate actions.
+- Categories use a critical strict MongoDB schema and tenant/code unique index; Go handler, schema-rejection, and model-validation tests cover lifecycle, permissions, isolation, canonicalization, and malformed documents.
+- Responsive category management uses tenant-safe UI caching and includes loading, empty, error, denied, read-only, create, edit, lifecycle, and version-conflict states; frontend category validation tests are present.
+- Tenant-wide item master data uses immutable lowercase tenant-unique SKUs, required active same-tenant category and unit references on create or reference change, optional descriptions/brands/shelf-life days, EU-14 allergen codes, and a stockable flag.
+- Item lifecycle changes use optimistic versions and audit events; existing inactive category/unit references remain valid for unrelated edits, while replacements must target active same-tenant references.
+- Item schemas and indexes are strict, and the tenant-scoped API and UI enforce tenant-safe references, lifecycle, caching, and mutation behavior.
+- Frontend `package-lock.json` is synchronized and `npm ci` works; TypeScript checking and the production build pass. Focused validation tests passed earlier, while the current Vitest fork-worker timeout remains blocked verification.
+- Canonical item conversions are tenant-scoped and unique per item and source unit, exposed through the nested item API.
+- Each conversion stores an exact source-to-item-base factor as a positive reduced `int64` numerator and denominator, each at most 1e9; creation requires active same-tenant source and base units with matching dimensions.
+- Conversion lifecycle changes use optimistic versions and audit events with strict schemas, critical indexes, and tenant isolation; item base-unit changes are blocked while any conversions exist.
+- Standalone responsive conversion management supports item selection, source-unit options, exact factor previews, editing, and lifecycle operations.
+- Backend quantity, validation, and handler tests plus the backend build pass; frontend TypeScript checking and the production build pass, while Vitest remains blocked by environment fork-worker timeouts.
+- Tenant-wide suppliers support unique supplier codes, contact details, order days, and a default lead time.
+- Each supplier and item has one tenant-wide purchasing term with an exact decimal-string microquantity, minor-unit money, MOQ, and optional currency and lead-time overrides.
+- Supplier and term creation/reference changes require active same-tenant references; lifecycle operations use optimistic versions and audit events with strict schemas, critical indexes, and tenant isolation.
+- Supplier and purchasing-term UI supports responsive supplier management and term management with tenant-safe item selection, exact quantity and money fields, and lifecycle states.
+- Backend validation and handler tests plus the backend build pass; frontend TypeScript checking and the production build pass, while Vitest remains blocked by environment fork-worker timeouts.
+
+## CSV Import MVP Progress
+
+- Added bounded UTF-8 comma/semicolon CSV parsing, canonical-header mapping, safe templates, synchronous dry-run/apply endpoints, tenant-scoped import runs, and target/key idempotency indexing for units, categories, items, suppliers, and supplier items.
+- Dry runs and invalid applies do not reserve keys or write catalog/run state; successful apply uses a MongoDB transaction and persists bounded errors/counts.
+- Orchestrator-owned validation remains required for full transaction, atomicity, permissions, isolation, and target integration coverage.
 
 ## Baseline Fixes
 
@@ -74,10 +98,11 @@ Phase 2: master data and import foundation.
 
 - Authenticated Playwright flows require a running, seeded backend and stable test database.
 - Container build verification requires Docker/WSL integration, which is not currently available.
+- Vitest verification is currently blocked in this environment because fork workers time out; the frontend package lock is synchronized, `npm ci` works, and TypeScript checking plus the production build pass.
 
 ## Active Task
 
-Implement tenant categories and item master data on the exact unit foundation, followed by item-specific conversions, supplier purchasing terms, and idempotent CSV imports.
+Implement the idempotent CSV import foundation.
 
 ## Known Follow-Ups
 

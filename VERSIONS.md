@@ -1,5 +1,61 @@
 # LastSaaS Version Notes
 
+## v1.10.0 — August 13, 2026
+
+### Supplier And Purchasing-Term MVP
+- **Tenant-wide suppliers** — suppliers have unique tenant-scoped codes, contact details, order days, and a default lead time.
+- **Purchasing terms** — each tenant-wide supplier/item pair has one term with an exact decimal-string microquantity, minor-unit money, MOQ, and optional currency and lead-time overrides.
+- **Safe references and lifecycle** — active same-tenant reference constraints, optimistic lifecycle versions, audit events, strict schemas/indexes, and tenant isolation cover suppliers and terms.
+- **Responsive management** — supplier and purchasing-term UI supports tenant-safe supplier/item selection, exact quantity and money fields, and lifecycle operations.
+
+### Verification
+- Backend validation and handler tests plus the backend build pass.
+- Frontend TypeScript checking and production build pass; Vitest remains environment-blocked by fork-worker timeouts.
+
+---
+
+## v1.9.0 — August 13, 2026
+
+### Canonical Item Conversions
+- **Tenant-scoped conversions** — each item has at most one conversion per source unit through the nested item API, with tenant-scoped uniqueness.
+- **Exact factors** — source-to-item-base factors are positive reduced `int64` numerator/denominator pairs, each no greater than 1e9; creation requires active same-tenant source and base units with matching dimensions.
+- **Safe lifecycle** — optimistic versions, audit events, strict schemas/indexes, and tenant isolation cover conversion lifecycle operations; item base-unit changes are blocked while conversions exist.
+- **Responsive management** — standalone conversion UI supports item selection, source-unit options, exact previews, editing, and lifecycle operations.
+
+### Verification
+- Backend quantity, validation, and handler tests plus the backend build pass.
+- Frontend TypeScript checking and production build pass; Vitest remains environment-blocked by fork-worker timeouts.
+
+---
+
+## v1.8.0 — August 13, 2026
+
+### Item Master Data
+- **Tenant-wide item identity** — items use immutable lowercase SKUs that are unique within the tenant.
+- **Catalog references** — create and category/unit reference changes require active category and unit records from the same tenant; unrelated edits retain existing inactive references, while active replacements remain allowed.
+- **Item attributes** — description, brand, and shelf-life days are optional; EU-14 allergen codes and stockable state are supported.
+- **Lifecycle and isolation** — optimistic item versions and audit events cover lifecycle changes, with strict schemas/indexes and tenant-safe API and UI behavior.
+
+### Verification
+- `package-lock.json` is synchronized, `npm ci` works, and frontend TypeScript checking plus the production build pass.
+- Focused validation tests passed earlier; the current Vitest run is blocked in this environment by fork-worker timeouts, so the frontend test suite is not claimed as passing.
+
+---
+
+## v1.7.0 — August 13, 2026
+
+### Tenant Category Management
+- **Flat tenant-wide categories** — categories are shared across all tenant locations and use canonical, tenant-unique slug codes.
+- **Strict catalog persistence** — category documents use strict critical schema validation and tenant/code uniqueness indexes, with validation at both the API and model layers.
+- **Catalog permissions and lifecycle** — `catalog.read` and `catalog.manage` enforcement covers category access; create, edit, deactivate, and reactivate operations use optimistic versions and tenant audit events.
+- **Tenant-safe management UI** — responsive category management includes loading, empty, error, denied, read-only, mutation, lifecycle, conflict, and tenant-switch-safe cache states.
+
+### Verification
+- Backend category handler lifecycle/permission/isolation coverage, strict schema-rejection coverage, and model-validation coverage are present.
+- Frontend category validation coverage is present; the package lock is now synchronized and full Vitest verification remains blocked by environment fork-worker timeouts.
+
+---
+
 ## v1.6.0 — August 11, 2026
 
 ### Exact Unit Catalog

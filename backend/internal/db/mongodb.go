@@ -79,6 +79,41 @@ func (m *MongoDB) ensureIndexes() {
 			},
 		},
 		{
+			"categories",
+			[]mongo.IndexModel{
+				{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "code", Value: 1}}, Options: options.Index().SetName("categories_tenant_code_unique").SetUnique(true)},
+				{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "isActive", Value: 1}}, Options: options.Index().SetName("categories_tenant_active")},
+			},
+		},
+		{
+			"items",
+			[]mongo.IndexModel{
+				{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "sku", Value: 1}}, Options: options.Index().SetName("items_tenant_sku_unique").SetUnique(true)},
+				{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "isActive", Value: 1}}, Options: options.Index().SetName("items_tenant_active")},
+				{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "categoryId", Value: 1}}, Options: options.Index().SetName("items_tenant_category")},
+				{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "baseUnitId", Value: 1}}, Options: options.Index().SetName("items_tenant_base_unit")},
+			},
+		},
+		{
+			"item_conversions",
+			[]mongo.IndexModel{
+				{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "itemId", Value: 1}, {Key: "fromUnitId", Value: 1}}, Options: options.Index().SetName("item_conversions_tenant_item_source_unique").SetUnique(true)},
+				{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "itemId", Value: 1}, {Key: "isActive", Value: 1}}, Options: options.Index().SetName("item_conversions_tenant_item_active")},
+			},
+		},
+		{"suppliers", []mongo.IndexModel{
+			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "code", Value: 1}}, Options: options.Index().SetName("suppliers_tenant_code_unique").SetUnique(true)},
+			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "isActive", Value: 1}}, Options: options.Index().SetName("suppliers_tenant_active")},
+		}},
+		{"supplier_items", []mongo.IndexModel{
+			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "supplierId", Value: 1}, {Key: "itemId", Value: 1}}, Options: options.Index().SetName("supplier_items_tenant_supplier_item_unique").SetUnique(true)},
+			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "itemId", Value: 1}, {Key: "isActive", Value: 1}}, Options: options.Index().SetName("supplier_items_tenant_item_active")},
+		}},
+		{"import_runs", []mongo.IndexModel{
+			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "target", Value: 1}, {Key: "idempotencyKey", Value: 1}}, Options: options.Index().SetName("import_runs_tenant_target_key_unique").SetUnique(true)},
+			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "createdAt", Value: -1}}, Options: options.Index().SetName("import_runs_tenant_created")},
+		}},
+		{
 			"locations",
 			[]mongo.IndexModel{
 				{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "code", Value: 1}}, Options: options.Index().SetName("locations_tenant_code_unique").SetUnique(true)},
@@ -380,7 +415,7 @@ func (m *MongoDB) ensureIndexes() {
 		"api_keys": true, "config_vars": true, "stripe_mappings": true,
 		"custom_pages": true, "branding_assets": true, "webauthn_credentials": true,
 		"sso_connections": true, "auth_codes": true,
-		"tenant_memberships": true, "locations": true, "restaurant_settings": true, "tenant_branding": true, "location_branding": true, "tenant_branding_assets": true, "storage_areas": true, "staff_profiles": true, "units": true,
+		"tenant_memberships": true, "locations": true, "restaurant_settings": true, "tenant_branding": true, "location_branding": true, "tenant_branding_assets": true, "storage_areas": true, "staff_profiles": true, "units": true, "categories": true, "items": true, "item_conversions": true, "suppliers": true, "supplier_items": true, "import_runs": true,
 	}
 
 	for _, idx := range indexes {
@@ -583,3 +618,20 @@ func (m *MongoDB) StaffProfiles() *mongo.Collection {
 func (m *MongoDB) Units() *mongo.Collection {
 	return m.Database.Collection("units")
 }
+
+func (m *MongoDB) Categories() *mongo.Collection {
+	return m.Database.Collection("categories")
+}
+
+func (m *MongoDB) Items() *mongo.Collection {
+	return m.Database.Collection("items")
+}
+
+func (m *MongoDB) ItemConversions() *mongo.Collection {
+	return m.Database.Collection("item_conversions")
+}
+
+func (m *MongoDB) Suppliers() *mongo.Collection     { return m.Database.Collection("suppliers") }
+func (m *MongoDB) SupplierItems() *mongo.Collection { return m.Database.Collection("supplier_items") }
+
+func (m *MongoDB) ImportRuns() *mongo.Collection { return m.Database.Collection("import_runs") }

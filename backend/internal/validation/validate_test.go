@@ -502,3 +502,61 @@ func TestValidate_StorageArea(t *testing.T) {
 		}
 	}
 }
+
+func TestValidate_Category(t *testing.T) {
+	now := time.Now()
+	valid := models.Category{TenantID: primitive.NewObjectID(), Code: "hot-food", Name: "Hot Food", IsActive: true, Version: 1, CreatedAt: now, UpdatedAt: now}
+	if err := Validate(&valid); err != nil {
+		t.Fatalf("expected valid category: %v", err)
+	}
+	for _, code := range []string{"Hot-Food", "hot food", "hot_food", "-hot", "hot-"} {
+		candidate := valid
+		candidate.Code = code
+		if err := Validate(&candidate); err == nil {
+			t.Errorf("expected category code %q to fail", code)
+		}
+	}
+}
+
+func TestValidate_Item(t *testing.T) {
+	now := time.Now()
+	valid := models.Item{TenantID: primitive.NewObjectID(), SKU: "burger-001", Name: "Burger", CategoryID: primitive.NewObjectID(), BaseUnitID: primitive.NewObjectID(), Allergens: []string{"milk", "eggs"}, Stockable: false, IsActive: true, Version: 1, CreatedAt: now, UpdatedAt: now}
+	if err := Validate(&valid); err != nil {
+		t.Fatalf("expected valid item: %v", err)
+	}
+	for name, mutate := range map[string]func(*models.Item){
+		"uppercase sku":      func(item *models.Item) { item.SKU = "Burger-001" },
+		"invalid allergen":   func(item *models.Item) { item.Allergens = []string{"wheat"} },
+		"duplicate allergen": func(item *models.Item) { item.Allergens = []string{"milk", "milk"} },
+		"oversized name":     func(item *models.Item) { item.Name = strings.Repeat("x", 161) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			candidate := valid
+			mutate(&candidate)
+			if err := Validate(&candidate); err == nil {
+				t.Fatal("expected invalid item to fail")
+			}
+		})
+	}
+}
+
+func TestValidate_ItemConversion(t *testing.T) {
+	now := time.Now()
+	valid := models.ItemConversion{
+		TenantID: primitive.NewObjectID(), ItemID: primitive.NewObjectID(), FromUnitID: primitive.NewObjectID(),
+		Numerator: 3, Denominator: 4, IsActive: true, Version: 1, CreatedAt: now, UpdatedAt: now,
+	}
+	if err := Validate(&valid); err != nil {
+		t.Fatalf("expected valid item conversion: %v", err)
+	}
+	for _, mutate := range []func(*models.ItemConversion){
+		func(conversion *models.ItemConversion) { conversion.Numerator = 0 },
+		func(conversion *models.ItemConversion) { conversion.Denominator = 1_000_000_001 },
+	} {
+		candidate := valid
+		mutate(&candidate)
+		if err := Validate(&candidate); err == nil {
+			t.Fatal("expected invalid item conversion to fail")
+		}
+	}
+}

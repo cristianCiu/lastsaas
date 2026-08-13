@@ -97,6 +97,79 @@ func TestIntegrationUnitsSchemaRejectsMalformedDocuments(t *testing.T) {
 	}
 }
 
+func TestIntegrationCategoriesSchemaRejectsMalformedDocuments(t *testing.T) {
+	database, cleanup := testutil.MustConnectTestDB(t)
+	defer cleanup()
+	if err := database.EnsureSchemaValidation(); err != nil {
+		t.Fatalf("apply schema validation: %v", err)
+	}
+	now := time.Now()
+	base := bson.M{"_id": primitive.NewObjectID(), "tenantId": primitive.NewObjectID(), "code": "hot-food", "name": "Hot Food", "isActive": true, "version": int64(1), "createdAt": now, "updatedAt": now}
+	if _, err := database.Categories().InsertOne(context.Background(), base); err != nil {
+		t.Fatalf("insert valid category: %v", err)
+	}
+	invalid := bson.M{}
+	for key, value := range base {
+		invalid[key] = value
+	}
+	invalid["_id"] = primitive.NewObjectID()
+	invalid["code"] = "INVALID CODE"
+	invalid["unexpected"] = true
+	if _, err := database.Categories().InsertOne(context.Background(), invalid); err == nil {
+		t.Fatal("expected malformed category to be rejected")
+	}
+}
+
+func TestIntegrationItemsSchemaRejectsMalformedDocuments(t *testing.T) {
+	database, cleanup := testutil.MustConnectTestDB(t)
+	defer cleanup()
+	if err := database.EnsureSchemaValidation(); err != nil {
+		t.Fatalf("apply schema validation: %v", err)
+	}
+	now := time.Now()
+	base := bson.M{"_id": primitive.NewObjectID(), "tenantId": primitive.NewObjectID(), "sku": "burger-001", "name": "Burger", "categoryId": primitive.NewObjectID(), "baseUnitId": primitive.NewObjectID(), "allergens": bson.A{"milk"}, "shelfLifeDays": int32(30), "stockable": true, "isActive": true, "version": int64(1), "createdAt": now, "updatedAt": now}
+	if _, err := database.Items().InsertOne(context.Background(), base); err != nil {
+		t.Fatalf("insert valid item: %v", err)
+	}
+	invalid := bson.M{}
+	for key, value := range base {
+		invalid[key] = value
+	}
+	invalid["_id"] = primitive.NewObjectID()
+	invalid["sku"] = "INVALID SKU"
+	invalid["allergens"] = bson.A{"milk", "milk"}
+	invalid["unexpected"] = true
+	if _, err := database.Items().InsertOne(context.Background(), invalid); err == nil {
+		t.Fatal("expected malformed item to be rejected")
+	}
+}
+
+func TestIntegrationItemConversionsSchemaRejectsMalformedDocuments(t *testing.T) {
+	database, cleanup := testutil.MustConnectTestDB(t)
+	defer cleanup()
+	if err := database.EnsureSchemaValidation(); err != nil {
+		t.Fatalf("apply schema validation: %v", err)
+	}
+	now := time.Now()
+	base := bson.M{
+		"_id": primitive.NewObjectID(), "tenantId": primitive.NewObjectID(), "itemId": primitive.NewObjectID(), "fromUnitId": primitive.NewObjectID(),
+		"numerator": int64(10), "denominator": int64(1), "isActive": true, "version": int64(1), "createdAt": now, "updatedAt": now,
+	}
+	if _, err := database.ItemConversions().InsertOne(context.Background(), base); err != nil {
+		t.Fatalf("insert valid item conversion: %v", err)
+	}
+	invalid := bson.M{}
+	for key, value := range base {
+		invalid[key] = value
+	}
+	invalid["_id"] = primitive.NewObjectID()
+	invalid["numerator"] = int64(0)
+	invalid["unexpected"] = true
+	if _, err := database.ItemConversions().InsertOne(context.Background(), invalid); err == nil {
+		t.Fatal("expected malformed item conversion to be rejected")
+	}
+}
+
 func TestIntegrationTenantBrandingSchemaRejectsUnsafeTokens(t *testing.T) {
 	database, cleanup := testutil.MustConnectTestDB(t)
 	defer cleanup()
