@@ -17,8 +17,8 @@ func TestStaffProfileDefaultsAndOverrides(t *testing.T) {
 		allLocations  bool
 		permissionLen int
 	}{
-		{models.RoleOwner, models.BusinessRoleCompanyOwner, true, 8},
-		{models.RoleAdmin, models.BusinessRoleOperationsManager, true, 8},
+		{models.RoleOwner, models.BusinessRoleCompanyOwner, true, 12},
+		{models.RoleAdmin, models.BusinessRoleOperationsManager, true, 12},
 		{models.RoleUser, models.BusinessRoleViewer, false, 0},
 	}
 	for _, test := range tests {
@@ -45,6 +45,16 @@ func TestStaffProfileDefaultsAndOverrides(t *testing.T) {
 	}
 	if HasBusinessPermission(&profile, models.PermissionCatalogManage) {
 		t.Fatal("explicit catalog deny must override role default")
+	}
+}
+
+func TestPurchasingRoleGetsLeastPrivilegePurchasingPermissions(t *testing.T) {
+	profile := models.StaffProfile{BusinessRole: models.BusinessRolePurchasing, Status: models.StaffProfileActive}
+	if !HasBusinessPermission(&profile, models.PermissionPurchasingRead) || !HasBusinessPermission(&profile, models.PermissionPurchasingManage) {
+		t.Fatal("purchasing role should manage purchasing records")
+	}
+	if HasBusinessPermission(&profile, models.PermissionPurchasingApprove) || HasBusinessPermission(&profile, models.PermissionPurchasingReceive) {
+		t.Fatal("purchasing role must not approve or receive by default")
 	}
 }
 

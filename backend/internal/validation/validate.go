@@ -168,10 +168,21 @@ func init() {
 	v.RegisterValidation("sales_import_status", func(fl validator.FieldLevel) bool {
 		return models.ValidSalesImportStatus(models.SalesImportStatus(fl.Field().String()))
 	})
+	v.RegisterValidation("purchase_order_status", func(fl validator.FieldLevel) bool {
+		return models.ValidPurchaseOrderStatus(models.PurchaseOrderStatus(fl.Field().String()))
+	})
+	v.RegisterValidation("goods_receipt_status", func(fl validator.FieldLevel) bool {
+		return models.ValidGoodsReceiptStatus(models.GoodsReceiptStatus(fl.Field().String()))
+	})
 	v.RegisterStructValidation(validateRecipeVersion, models.RecipeVersion{})
 	v.RegisterStructValidation(validateRecipeComponent, models.RecipeComponent{})
 	v.RegisterStructValidation(validateExternalProductMapping, models.ExternalProductMapping{})
 	v.RegisterStructValidation(validateSale, models.Sale{})
+	v.RegisterStructValidation(validatePurchaseOrder, models.PurchaseOrder{})
+	v.RegisterStructValidation(validatePurchaseOrderLine, models.PurchaseOrderLine{})
+	v.RegisterStructValidation(validateGoodsReceiptLine, models.GoodsReceiptLine{})
+	v.RegisterStructValidation(validateGoodsReceipt, models.GoodsReceipt{})
+	v.RegisterStructValidation(validatePurchaseOrderEmailDelivery, models.PurchaseOrderEmailDelivery{})
 }
 
 func validateRecipeVersion(sl validator.StructLevel) {
@@ -206,6 +217,64 @@ func validateSale(sl validator.StructLevel) {
 	}
 	if sale.Status == models.SaleStatusCompleted && sale.CancelledAt != nil {
 		sl.ReportError(sale.CancelledAt, "CancelledAt", "cancelledAt", "forbidden_for_completed", "")
+	}
+}
+
+func validatePurchaseOrder(sl validator.StructLevel) {
+	order := sl.Current().Interface().(models.PurchaseOrder)
+	if order.Status == models.PurchaseOrderSubmitted && (order.SubmittedBy == nil || order.SubmittedAt == nil) {
+		sl.ReportError(order.SubmittedAt, "SubmittedAt", "submittedAt", "required_for_submitted", "")
+	}
+	if order.Status == models.PurchaseOrderApproved && (order.ApprovedBy == nil || order.ApprovedAt == nil) {
+		sl.ReportError(order.ApprovedAt, "ApprovedAt", "approvedAt", "required_for_approved", "")
+	}
+	if order.Status == models.PurchaseOrderCancelled && (order.CancelledBy == nil || order.CancelledAt == nil) {
+		sl.ReportError(order.CancelledAt, "CancelledAt", "cancelledAt", "required_for_cancelled", "")
+	}
+}
+
+func validatePurchaseOrderLine(sl validator.StructLevel) {
+	line := sl.Current().Interface().(models.PurchaseOrderLine)
+	if line.OrderedQuantityMicros < line.RequestedQuantityMicros || line.OrderedQuantityMicros-line.RequestedQuantityMicros != line.RoundingDeltaMicros {
+		sl.ReportError(line.OrderedQuantityMicros, "OrderedQuantityMicros", "orderedQuantityMicros", "rounding_result", "")
+	}
+	if line.OrderedPacks > 0 && line.PackSizeMicros > 0 && line.OrderedPacks > math.MaxInt64/line.PackSizeMicros {
+		sl.ReportError(line.OrderedPacks, "OrderedPacks", "orderedPacks", "rounding_overflow", "")
+	}
+	if line.OrderedPacks > 0 && line.UnitPriceMinor > 0 && line.OrderedPacks > math.MaxInt64/line.UnitPriceMinor {
+		sl.ReportError(line.LineTotalMinor, "LineTotalMinor", "lineTotalMinor", "rounding_overflow", "")
+	}
+}
+
+func validateGoodsReceiptLine(sl validator.StructLevel) {
+	line := sl.Current().Interface().(models.GoodsReceiptLine)
+	if line.ReceivedQuantityMicros > 0 && line.OrderedQuantityMicros <= math.MaxInt64-line.ReceivedQuantityMicros {
+		expected := line.ReceivedQuantityMicros - line.OrderedQuantityMicros
+		if line.QuantityVarianceMicros != expected {
+			sl.ReportError(line.QuantityVarianceMicros, "QuantityVarianceMicros", "quantityVarianceMicros", "exact_variance", "")
+		}
+	}
+	if line.ActualUnitPriceMinor <= math.MaxInt64-line.OrderedUnitPriceMinor {
+		if line.PriceVarianceMinor != line.ActualUnitPriceMinor-line.OrderedUnitPriceMinor {
+			sl.ReportError(line.PriceVarianceMinor, "PriceVarianceMinor", "priceVarianceMinor", "exact_variance", "")
+		}
+	}
+}
+
+func validateGoodsReceipt(sl validator.StructLevel) {
+	receipt := sl.Current().Interface().(models.GoodsReceipt)
+	if receipt.Status == models.GoodsReceiptCancelled && receipt.ReversalPostingID == nil {
+		sl.ReportError(receipt.ReversalPostingID, "ReversalPostingID", "reversalPostingId", "required_for_cancelled", "")
+	}
+}
+
+func validatePurchaseOrderEmailDelivery(sl validator.StructLevel) {
+	delivery := sl.Current().Interface().(models.PurchaseOrderEmailDelivery)
+	if delivery.Status == "sent" && delivery.SentAt == nil {
+		sl.ReportError(delivery.SentAt, "SentAt", "sentAt", "required_for_sent", "")
+	}
+	if delivery.Status == "pending" && delivery.SentAt != nil {
+		sl.ReportError(delivery.SentAt, "SentAt", "sentAt", "forbidden_for_pending", "")
 	}
 }
 

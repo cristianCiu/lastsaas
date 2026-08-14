@@ -55,6 +55,9 @@ import RecipesPage from './features/recipes/RecipesPage';
 import MappingsPage from './features/recipes/MappingsPage';
 import SalesImportsPage from './features/sales/SalesImportsPage';
 import UnmappedSalesPage from './features/sales/UnmappedSalesPage';
+import PurchaseOrdersPage, { NewOrderPage } from './features/purchasing/PurchaseOrdersPage';
+import CalendarPage from './features/purchasing/CalendarPage';
+import ReceiptsPage, { ReceivePage } from './features/purchasing/ReceiptsPage';
 
 // Admin pages (lazy — only loaded by root tenant admins)
 const AdminDashboardPage = lazy(() => import('./pages/admin/DashboardPage'));
@@ -203,6 +206,13 @@ export default function App() {
                         <Route path="/sales/imports" element={<SalesImportsPage />} />
                         <Route path="/sales/imports/:runId" element={<SalesImportsPage />} />
                         <Route path="/sales/unmapped" element={<UnmappedSalesPage />} />
+                        <Route path="/purchasing/orders" element={<PurchaseOrdersPage />} />
+                        <Route path="/purchasing/orders/new" element={<NewOrderPage />} />
+                        <Route path="/purchasing/orders/:orderId" element={<PurchaseOrdersPage />} />
+                        <Route path="/purchasing/orders/:orderId/receive" element={<ReceivePage />} />
+                        <Route path="/purchasing/calendar" element={<CalendarPage />} />
+                        <Route path="/purchasing/receipts" element={<ReceiptsPage />} />
+                        <Route path="/purchasing/receipts/:receiptId" element={<ReceiptsPage />} />
                         <Route path="/activity" element={<ActivityPage />} />
                         <Route path="/test-entitlements" element={<TestEntitlementsPage />} />
                         <Route path="/messages" element={<Suspense fallback={<LazyFallback />}><AdminMessagesPage /></Suspense>} />

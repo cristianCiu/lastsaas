@@ -139,6 +139,28 @@ func (m *MongoDB) ensureIndexes() {
 			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "source", Value: 1}, {Key: "idempotencyKey", Value: 1}}, Options: options.Index().SetName("sales_import_runs_idempotency_unique").SetUnique(true)},
 			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "createdAt", Value: -1}}, Options: options.Index().SetName("sales_import_runs_created")},
 		}},
+		{"purchase_orders", []mongo.IndexModel{
+			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "locationId", Value: 1}, {Key: "orderNumber", Value: 1}}, Options: options.Index().SetName("purchase_orders_scope_number_unique").SetUnique(true)},
+			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "locationId", Value: 1}, {Key: "status", Value: 1}, {Key: "deliveryDate", Value: 1}}, Options: options.Index().SetName("purchase_orders_scope_status_delivery")},
+		}},
+		{"purchase_order_lines", []mongo.IndexModel{
+			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "locationId", Value: 1}, {Key: "purchaseOrderId", Value: 1}, {Key: "lineNumber", Value: 1}}, Options: options.Index().SetName("purchase_order_lines_scope_order_line_unique").SetUnique(true)},
+		}},
+		{"delivery_calendars", []mongo.IndexModel{
+			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "locationId", Value: 1}, {Key: "supplierId", Value: 1}, {Key: "weekday", Value: 1}}, Options: options.Index().SetName("delivery_calendars_scope_weekday_unique").SetUnique(true)},
+		}},
+		{"goods_receipts", []mongo.IndexModel{
+			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "idempotencyKey", Value: 1}}, Options: options.Index().SetName("goods_receipts_tenant_idempotency_unique").SetUnique(true)},
+			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "locationId", Value: 1}, {Key: "purchaseOrderId", Value: 1}, {Key: "receivedAt", Value: -1}}},
+			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "postingId", Value: 1}}, Options: options.Index().SetName("goods_receipts_posting_unique").SetUnique(true)},
+		}},
+		{"goods_receipt_lines", []mongo.IndexModel{
+			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "goodsReceiptId", Value: 1}, {Key: "purchaseOrderLineId", Value: 1}}, Options: options.Index().SetName("goods_receipt_lines_receipt_order_line_unique").SetUnique(true)},
+			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "purchaseOrderId", Value: 1}, {Key: "createdAt", Value: -1}}},
+		}},
+		{"purchase_order_email_deliveries", []mongo.IndexModel{
+			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "purchaseOrderId", Value: 1}, {Key: "orderVersion", Value: 1}}, Options: options.Index().SetName("purchase_order_email_delivery_unique").SetUnique(true)},
+		}},
 		{"import_runs", []mongo.IndexModel{
 			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "target", Value: 1}, {Key: "idempotencyKey", Value: 1}}, Options: options.Index().SetName("import_runs_tenant_target_key_unique").SetUnique(true)},
 			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "createdAt", Value: -1}}, Options: options.Index().SetName("import_runs_tenant_created")},
@@ -470,7 +492,7 @@ func (m *MongoDB) ensureIndexes() {
 		"api_keys": true, "config_vars": true, "stripe_mappings": true,
 		"custom_pages": true, "branding_assets": true, "webauthn_credentials": true,
 		"sso_connections": true, "auth_codes": true,
-		"tenant_memberships": true, "locations": true, "restaurant_settings": true, "tenant_branding": true, "location_branding": true, "tenant_branding_assets": true, "storage_areas": true, "staff_profiles": true, "units": true, "categories": true, "items": true, "item_conversions": true, "suppliers": true, "supplier_items": true, "recipes": true, "recipe_versions": true, "recipe_components": true, "external_product_mappings": true, "sales": true, "sales_lines": true, "unresolved_sale_lines": true, "sales_import_runs": true, "import_runs": true, "stock_postings": true, "stock_movements": true, "stock_balances": true, "stock_lots": true, "stock_counts": true, "stock_count_lines": true, "reconciliation_runs": true,
+		"tenant_memberships": true, "locations": true, "restaurant_settings": true, "tenant_branding": true, "location_branding": true, "tenant_branding_assets": true, "storage_areas": true, "staff_profiles": true, "units": true, "categories": true, "items": true, "item_conversions": true, "suppliers": true, "supplier_items": true, "recipes": true, "recipe_versions": true, "recipe_components": true, "external_product_mappings": true, "sales": true, "sales_lines": true, "unresolved_sale_lines": true, "sales_import_runs": true, "purchase_orders": true, "purchase_order_lines": true, "delivery_calendars": true, "goods_receipts": true, "goods_receipt_lines": true, "purchase_order_email_deliveries": true, "import_runs": true, "stock_postings": true, "stock_movements": true, "stock_balances": true, "stock_lots": true, "stock_counts": true, "stock_count_lines": true, "reconciliation_runs": true,
 	}
 
 	for _, idx := range indexes {
@@ -712,10 +734,28 @@ func (m *MongoDB) RecipeComponents() *mongo.Collection {
 func (m *MongoDB) ExternalProductMappings() *mongo.Collection {
 	return m.Database.Collection("external_product_mappings")
 }
-func (m *MongoDB) Sales() *mongo.Collection { return m.Database.Collection("sales") }
+func (m *MongoDB) Sales() *mongo.Collection      { return m.Database.Collection("sales") }
 func (m *MongoDB) SalesLines() *mongo.Collection { return m.Database.Collection("sales_lines") }
-func (m *MongoDB) UnresolvedSaleLines() *mongo.Collection { return m.Database.Collection("unresolved_sale_lines") }
-func (m *MongoDB) SalesImportRuns() *mongo.Collection { return m.Database.Collection("sales_import_runs") }
+func (m *MongoDB) UnresolvedSaleLines() *mongo.Collection {
+	return m.Database.Collection("unresolved_sale_lines")
+}
+func (m *MongoDB) SalesImportRuns() *mongo.Collection {
+	return m.Database.Collection("sales_import_runs")
+}
+func (m *MongoDB) PurchaseOrders() *mongo.Collection { return m.Database.Collection("purchase_orders") }
+func (m *MongoDB) PurchaseOrderLines() *mongo.Collection {
+	return m.Database.Collection("purchase_order_lines")
+}
+func (m *MongoDB) DeliveryCalendars() *mongo.Collection {
+	return m.Database.Collection("delivery_calendars")
+}
+func (m *MongoDB) GoodsReceipts() *mongo.Collection { return m.Database.Collection("goods_receipts") }
+func (m *MongoDB) GoodsReceiptLines() *mongo.Collection {
+	return m.Database.Collection("goods_receipt_lines")
+}
+func (m *MongoDB) PurchaseOrderEmailDeliveries() *mongo.Collection {
+	return m.Database.Collection("purchase_order_email_deliveries")
+}
 
 func (m *MongoDB) ImportRuns() *mongo.Collection { return m.Database.Collection("import_runs") }
 

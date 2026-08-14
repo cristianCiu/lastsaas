@@ -577,7 +577,11 @@ func main() {
 	ownerRouter.HandleFunc("/role", tenantHandler.ChangeRole).Methods("PATCH")
 	ownerRouter.HandleFunc("/transfer-ownership", tenantHandler.TransferOwnership).Methods("POST")
 
-	product.RegisterRoutes(guarded, database, authMiddleware, tenantMiddleware, sysLogger)
+	if emailService != nil {
+		product.RegisterRoutes(guarded, database, authMiddleware, tenantMiddleware, sysLogger, emailService)
+	} else {
+		product.RegisterRoutes(guarded, database, authMiddleware, tenantMiddleware, sysLogger)
+	}
 
 	// Message routes (require JWT, user-scoped)
 	messageAPI := guarded.PathPrefix("/messages").Subrouter()

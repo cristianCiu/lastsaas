@@ -1,5 +1,21 @@
 # LastSaaS Version Notes
 
+## v5.0.0 — August 14, 2026
+
+### Purchasing And Goods Receipt
+- **Purchase orders** — location-scoped orders snapshot supplier terms, apply exact pack and MOQ rounding, require manager approval, and use delivery calendars.
+- **Goods receipts** — partial receipts record quantity and price variances, lot and expiry data, and idempotent `goods_receipt` journal postings.
+- **Order documents** — purchase orders render as tenant/location-branded PDFs. Managers can explicitly email a PDF attachment with idempotent delivery.
+- **Purchasing UI** — responsive order, calendar, receipt, reversal, PDF download, and explicit document-email workflows use dedicated purchasing permissions.
+
+### Verification
+- `cd backend && go test ./...` and `cd backend && go build ./...` pass.
+- `cd frontend && npx tsc --noEmit` passes.
+- Receipt transaction coverage against a MongoDB replica set requires a configured `MONGODB_URI`.
+- Frontend Vitest remains environment-blocked by fork-worker timeouts.
+
+---
+
 ## v4.0.0 — August 14, 2026
 
 ### Recipes And Theoretical Consumption

@@ -9,6 +9,7 @@ import (
 
 	"lastsaas/internal/apierror"
 	"lastsaas/internal/db"
+	"lastsaas/internal/email"
 	"lastsaas/internal/middleware"
 	"lastsaas/internal/models"
 	"lastsaas/internal/syslog"
@@ -19,14 +20,19 @@ import (
 )
 
 type productHandler struct {
-	db     *db.MongoDB
-	logger *syslog.Logger
+	db          *db.MongoDB
+	logger      *syslog.Logger
+	emailSender email.AttachmentSender
 }
 
 // RegisterRoutes installs all product routes beneath an already guarded API
 // router. Production and integration tests call this same registration path.
-func RegisterRoutes(guarded *mux.Router, database *db.MongoDB, auth *middleware.AuthMiddleware, tenant *middleware.TenantMiddleware, logger *syslog.Logger) {
-	handler := &productHandler{db: database, logger: logger}
+func RegisterRoutes(guarded *mux.Router, database *db.MongoDB, auth *middleware.AuthMiddleware, tenant *middleware.TenantMiddleware, logger *syslog.Logger, senders ...email.AttachmentSender) {
+	var sender email.AttachmentSender
+	if len(senders) > 0 {
+		sender = senders[0]
+	}
+	handler := &productHandler{db: database, logger: logger, emailSender: sender}
 	requireProfile := RequireStaffProfile(database)
 	onboardingAPI := guarded.PathPrefix("/product/onboarding").Subrouter()
 	onboardingAPI.Use(auth.RequireAuth)
@@ -91,6 +97,26 @@ func RegisterRoutes(guarded *mux.Router, database *db.MongoDB, auth *middleware.
 	productAPI.Handle("/sales/imports/{runId}", withProductMiddleware(http.HandlerFunc(handler.getSalesImportRun), requireProfile, RequireBusinessPermission(models.PermissionCatalogRead))).Methods(http.MethodGet)
 	productAPI.Handle("/sales/unmapped", withProductMiddleware(http.HandlerFunc(handler.listUnmappedSales), requireProfile, RequireBusinessPermission(models.PermissionCatalogRead))).Methods(http.MethodGet)
 	productAPI.Handle("/sales/{saleId}/cancel", withProductMiddleware(http.HandlerFunc(handler.cancelSale), requireProfile, requireSalesManager())).Methods(http.MethodPost)
+	productAPI.Handle("/purchase-orders", withProductMiddleware(http.HandlerFunc(handler.listPurchaseOrders), requireProfile, RequireBusinessPermission(models.PermissionPurchasingRead))).Methods(http.MethodGet)
+	productAPI.Handle("/purchase-orders", withProductMiddleware(http.HandlerFunc(handler.createPurchaseOrder), requireProfile, RequireBusinessPermission(models.PermissionPurchasingManage))).Methods(http.MethodPost)
+	productAPI.Handle("/purchase-orders/{orderId}", withProductMiddleware(http.HandlerFunc(handler.getPurchaseOrder), requireProfile, RequireBusinessPermission(models.PermissionPurchasingRead))).Methods(http.MethodGet)
+	productAPI.Handle("/purchase-orders/{orderId}/document", withProductMiddleware(http.HandlerFunc(handler.getPurchaseOrderDocument), requireProfile, RequireBusinessPermission(models.PermissionPurchasingRead))).Methods(http.MethodGet)
+	productAPI.Handle("/purchase-orders/{orderId}/document/send", withProductMiddleware(http.HandlerFunc(handler.sendPurchaseOrderDocument), requireProfile, RequireBusinessPermission(models.PermissionPurchasingManage), requirePurchasingManager())).Methods(http.MethodPost)
+	productAPI.Handle("/purchase-orders/{orderId}", withProductMiddleware(http.HandlerFunc(handler.updatePurchaseOrder), requireProfile, RequireBusinessPermission(models.PermissionPurchasingManage))).Methods(http.MethodPatch)
+	productAPI.Handle("/purchase-orders/{orderId}/submit", withProductMiddleware(http.HandlerFunc(handler.submitPurchaseOrder), requireProfile, RequireBusinessPermission(models.PermissionPurchasingManage))).Methods(http.MethodPost)
+	productAPI.Handle("/purchase-orders/{orderId}/approve", withProductMiddleware(http.HandlerFunc(handler.approvePurchaseOrder), requireProfile, RequireBusinessPermission(models.PermissionPurchasingApprove), requirePurchasingManager())).Methods(http.MethodPost)
+	productAPI.Handle("/purchase-orders/{orderId}/cancel", withProductMiddleware(http.HandlerFunc(handler.cancelPurchaseOrder), requireProfile, RequireBusinessPermission(models.PermissionPurchasingManage))).Methods(http.MethodPost)
+	productAPI.Handle("/purchase-orders/{orderId}/receipts", withProductMiddleware(http.HandlerFunc(handler.createGoodsReceipt), requireProfile, RequireBusinessPermission(models.PermissionPurchasingReceive), RequireBusinessPermission(models.PermissionInventoryPost))).Methods(http.MethodPost)
+	productAPI.Handle("/purchase-orders/{orderId}/receipts", withProductMiddleware(http.HandlerFunc(handler.listOrderGoodsReceipts), requireProfile, RequirePurchasingReceiveReadPermission())).Methods(http.MethodGet)
+	productAPI.Handle("/purchase-orders/{orderId}/goods-receipts", withProductMiddleware(http.HandlerFunc(handler.listOrderGoodsReceipts), requireProfile, RequirePurchasingReceiveReadPermission())).Methods(http.MethodGet)
+	productAPI.Handle("/goods-receipts", withProductMiddleware(http.HandlerFunc(handler.listGoodsReceipts), requireProfile, RequirePurchasingReceiveReadPermission())).Methods(http.MethodGet)
+	productAPI.Handle("/goods-receipts/{receiptId}", withProductMiddleware(http.HandlerFunc(handler.getGoodsReceipt), requireProfile, RequirePurchasingReceiveReadPermission())).Methods(http.MethodGet)
+	productAPI.Handle("/goods-receipts/{receiptId}/reverse", withProductMiddleware(http.HandlerFunc(handler.reverseGoodsReceipt), requireProfile, RequireBusinessPermission(models.PermissionPurchasingReceive), RequireBusinessPermission(models.PermissionInventoryPost))).Methods(http.MethodPost)
+	productAPI.Handle("/goods-receipts/{receiptId}/cancel", withProductMiddleware(http.HandlerFunc(handler.reverseGoodsReceipt), requireProfile, RequireBusinessPermission(models.PermissionPurchasingReceive), RequireBusinessPermission(models.PermissionInventoryPost))).Methods(http.MethodPost)
+	productAPI.Handle("/delivery-calendars", withProductMiddleware(http.HandlerFunc(handler.listDeliveryCalendars), requireProfile, RequireBusinessPermission(models.PermissionPurchasingRead))).Methods(http.MethodGet)
+	productAPI.Handle("/delivery-calendars", withProductMiddleware(http.HandlerFunc(handler.createDeliveryCalendar), requireProfile, RequireBusinessPermission(models.PermissionPurchasingManage))).Methods(http.MethodPost)
+	productAPI.Handle("/delivery-calendars/{calendarId}", withProductMiddleware(http.HandlerFunc(handler.updateDeliveryCalendar), requireProfile, RequireBusinessPermission(models.PermissionPurchasingManage))).Methods(http.MethodPatch)
+	productAPI.Handle("/delivery-calendars/{calendarId}", withProductMiddleware(http.HandlerFunc(handler.deleteDeliveryCalendar), requireProfile, RequireBusinessPermission(models.PermissionPurchasingManage))).Methods(http.MethodDelete)
 	productAPI.Handle("/import-templates/{target}", withProductMiddleware(http.HandlerFunc(handler.getImportTemplate), requireProfile, RequireBusinessPermission(models.PermissionCatalogRead))).Methods(http.MethodGet)
 	productAPI.Handle("/imports/dry-run", withProductMiddleware(http.HandlerFunc(handler.dryRunImport), requireProfile, RequireBusinessPermission(models.PermissionCatalogRead))).Methods(http.MethodPost)
 	productAPI.Handle("/imports", withProductMiddleware(http.HandlerFunc(handler.applyImport), requireProfile, RequireBusinessPermission(models.PermissionCatalogManage))).Methods(http.MethodPost)

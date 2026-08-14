@@ -104,7 +104,7 @@ Phase 2: master data and import foundation.
 
 ## Active Task
 
-V4 recipe and theoretical-consumption MVP is complete. Run replica-set transaction coverage when MongoDB is available.
+V5 purchasing and goods-receipt workflows are complete. Run replica-set transaction coverage when MongoDB is available.
 
 ## Known Follow-Ups
 
@@ -112,5 +112,6 @@ V4 recipe and theoretical-consumption MVP is complete. Run replica-set transacti
 - Run the inventory transaction integration tests against a replica set when `MONGODB_URI` is available.
 - Add guest actuals, native POS adapters, and reporting after the recipe and sales MVP is stable.
 - Resolve unmapped products through a POS mapping, then import the corrected sales data again.
+- Run purchase-order and goods-receipt transaction coverage against a MongoDB replica set when `MONGODB_URI` is available.
 - Pilot decisions still needed: first customer segment, kitchen/drinks scope, lot-tracking defaults, costing method, approval policy, and available historical data.
 - The frontend build warns that the main bundle exceeds 500 kB; address through measured route/vendor splitting rather than arbitrary chunk configuration.

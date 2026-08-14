@@ -29,17 +29,18 @@ type StockPosting struct {
 type StockPostingType string
 
 const (
-	StockPostingOpeningBalance StockPostingType = "opening_balance"
-	StockPostingAdjustment     StockPostingType = "manual_adjustment"
-	StockPostingReversal       StockPostingType = "reversal"
-	StockPostingTransfer       StockPostingType = "transfer"
-	StockPostingWaste          StockPostingType = "waste"
-	StockPostingCount          StockPostingType = "stock_count"
+	StockPostingOpeningBalance  StockPostingType = "opening_balance"
+	StockPostingAdjustment      StockPostingType = "manual_adjustment"
+	StockPostingReversal        StockPostingType = "reversal"
+	StockPostingTransfer        StockPostingType = "transfer"
+	StockPostingWaste           StockPostingType = "waste"
+	StockPostingCount           StockPostingType = "stock_count"
 	StockPostingSaleConsumption StockPostingType = "sale_consumption"
+	StockPostingGoodsReceipt    StockPostingType = "goods_receipt"
 )
 
 func ValidStockPostingType(value StockPostingType) bool {
-	return value == StockPostingOpeningBalance || value == StockPostingAdjustment || value == StockPostingReversal || value == StockPostingTransfer || value == StockPostingWaste || value == StockPostingCount || value == StockPostingSaleConsumption
+	return value == StockPostingOpeningBalance || value == StockPostingAdjustment || value == StockPostingReversal || value == StockPostingTransfer || value == StockPostingWaste || value == StockPostingCount || value == StockPostingSaleConsumption || value == StockPostingGoodsReceipt
 }
 
 // StockMovement is an immutable signed fixed-point journal line. Quantities

@@ -29,6 +29,10 @@ const (
 	PermissionInventoryPost        BusinessPermission = "inventory.post"
 	PermissionInventoryManage      BusinessPermission = "inventory.manage"
 	PermissionInventoryLotOverride BusinessPermission = "inventory.lot_override"
+	PermissionPurchasingRead       BusinessPermission = "purchasing.read"
+	PermissionPurchasingManage     BusinessPermission = "purchasing.manage"
+	PermissionPurchasingApprove    BusinessPermission = "purchasing.approve"
+	PermissionPurchasingReceive    BusinessPermission = "purchasing.receive"
 	PermissionSalesRead            BusinessPermission = "sales.read"
 	PermissionSalesManage          BusinessPermission = "sales.manage"
 )
@@ -71,6 +75,7 @@ func ValidBusinessRole(role BusinessRole) bool {
 func ValidBusinessPermission(permission BusinessPermission) bool {
 	return permission == PermissionStorageAreasRead || permission == PermissionStorageAreasManage ||
 		permission == PermissionCatalogRead || permission == PermissionCatalogManage || permission == PermissionSalesRead || permission == PermissionSalesManage ||
+		permission == PermissionPurchasingRead || permission == PermissionPurchasingManage || permission == PermissionPurchasingApprove || permission == PermissionPurchasingReceive ||
 		permission == PermissionInventoryRead || permission == PermissionInventoryPost || permission == PermissionInventoryManage || permission == PermissionInventoryLotOverride
 }
 

@@ -2,10 +2,10 @@ package email
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"html/template"
-	"io"
 	"log/slog"
 	"math"
 	"net/http"
@@ -25,11 +25,34 @@ type ResendService struct {
 	httpClient  *http.Client
 }
 
+// Attachment is a bounded, explicitly typed email attachment. Callers must
+// provide the bytes; ResendService never fetches attachment URLs.
+type Attachment struct {
+	Filename    string
+	ContentType string
+	Data        []byte
+}
+
+// AttachmentSender is the small interface used by document handlers. It also
+// makes document email delivery straightforward to test without Resend.
+type AttachmentSender interface {
+	SendEmailWithAttachment(to, subject, html string, attachment Attachment) error
+}
+
+const maxAttachmentSize = 10 * 1024 * 1024
+
 type emailRequest struct {
-	From    string   `json:"from"`
-	To      []string `json:"to"`
-	Subject string   `json:"subject"`
-	HTML    string   `json:"html"`
+	From        string             `json:"from"`
+	To          []string           `json:"to"`
+	Subject     string             `json:"subject"`
+	HTML        string             `json:"html"`
+	Attachments []emailAttachment `json:"attachments,omitempty"`
+}
+
+type emailAttachment struct {
+	Filename    string `json:"filename"`
+	Content     string `json:"content"`
+	ContentType string `json:"content_type,omitempty"`
 }
 
 func NewResendService(apiKey, fromEmail, fromName, appName, frontendURL string, getConfig func(string) string) *ResendService {
@@ -53,14 +76,32 @@ func (s *ResendService) from() string {
 }
 
 func (s *ResendService) SendEmail(to, subject, html string) error {
-	reqBody := emailRequest{
+	return s.sendEmail(to, subject, html, nil)
+}
+
+// SendEmailWithAttachment sends one validated attachment through Resend.
+func (s *ResendService) SendEmailWithAttachment(to, subject, html string, attachment Attachment) error {
+	if err := validateAttachment(attachment); err != nil {
+		return err
+	}
+	return s.sendEmail(to, subject, html, &attachment)
+}
+
+func (s *ResendService) sendEmail(to, subject, html string, attachment *Attachment) error {
+	request := emailRequest{
 		From:    s.from(),
 		To:      []string{to},
 		Subject: subject,
 		HTML:    html,
 	}
+	if attachment != nil {
+		request.Attachments = []emailAttachment{{
+			Filename: attachment.Filename, ContentType: attachment.ContentType,
+			Content: base64.StdEncoding.EncodeToString(attachment.Data),
+		}}
+	}
 
-	jsonBody, err := json.Marshal(reqBody)
+	jsonBody, err := json.Marshal(request)
 	if err != nil {
 		return fmt.Errorf("failed to marshal email request: %w", err)
 	}
@@ -70,7 +111,7 @@ func (s *ResendService) SendEmail(to, subject, html string) error {
 		if attempt > 0 {
 			backoff := time.Duration(math.Pow(2, float64(attempt))) * 500 * time.Millisecond
 			time.Sleep(backoff)
-			slog.Warn("email retry attempt", "attempt", attempt+1, "maxRetries", maxRetries, "to", to)
+			slog.Warn("email retry attempt", "attempt", attempt+1, "maxRetries", maxRetries)
 		}
 
 		req, err := http.NewRequest("POST", s.baseURL+"/emails", bytes.NewBuffer(jsonBody))
@@ -84,7 +125,7 @@ func (s *ResendService) SendEmail(to, subject, html string) error {
 		resp, err := s.httpClient.Do(req)
 		if err != nil {
 			if attempt < maxRetries-1 {
-				slog.Warn("email network error, will retry", "error", err)
+				slog.Warn("email network error, will retry")
 				continue
 			}
 			return fmt.Errorf("failed to send email after %d attempts: %w", maxRetries, err)
@@ -93,23 +134,41 @@ func (s *ResendService) SendEmail(to, subject, html string) error {
 		if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated {
 			resp.Body.Close()
 			apicounter.ResendEmails.Add(1)
-			slog.Info("email sent successfully", "to", to)
+			slog.Info("email sent successfully")
 			return nil
 		}
 
-		body, _ := io.ReadAll(resp.Body)
 		resp.Body.Close()
 
 		// Retry on transient errors (429 rate limit, 5xx server errors)
 		if (resp.StatusCode == 429 || resp.StatusCode >= 500) && attempt < maxRetries-1 {
-			slog.Warn("email API transient error, will retry", "status", resp.StatusCode, "body", string(body))
+			slog.Warn("email API transient error, will retry", "status", resp.StatusCode)
 			continue
 		}
 
-		slog.Error("email API error", "status", resp.StatusCode, "body", string(body))
+		slog.Error("email API error", "status", resp.StatusCode)
 		return fmt.Errorf("email API returned status %d", resp.StatusCode)
 	}
 	return fmt.Errorf("email send failed after %d attempts", maxRetries)
+}
+
+func validateAttachment(attachment Attachment) error {
+	if attachment.ContentType != "application/pdf" {
+		return fmt.Errorf("attachment content type must be application/pdf")
+	}
+	if len(attachment.Data) == 0 || len(attachment.Data) > maxAttachmentSize {
+		return fmt.Errorf("attachment size must be between 1 byte and %d bytes", maxAttachmentSize)
+	}
+	if len(attachment.Filename) < 5 || len(attachment.Filename) > 128 ||
+		attachment.Filename[0] == '.' || attachment.Filename[len(attachment.Filename)-4:] != ".pdf" {
+		return fmt.Errorf("attachment filename must be a safe PDF filename")
+	}
+	for _, r := range attachment.Filename {
+		if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' || r == '.') {
+			return fmt.Errorf("attachment filename must be a safe PDF filename")
+		}
+	}
+	return nil
 }
 
 // resolveAppName returns the app name from the config system, falling back to the constructor value.

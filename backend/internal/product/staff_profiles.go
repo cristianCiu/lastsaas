@@ -37,6 +37,10 @@ var allBusinessPermissions = []models.BusinessPermission{
 	models.PermissionInventoryPost,
 	models.PermissionInventoryManage,
 	models.PermissionInventoryLotOverride,
+	models.PermissionPurchasingRead,
+	models.PermissionPurchasingManage,
+	models.PermissionPurchasingApprove,
+	models.PermissionPurchasingReceive,
 }
 
 func DefaultBusinessRole(role models.MemberRole) models.BusinessRole {
@@ -227,6 +231,14 @@ func EffectivePermissions(profile *models.StaffProfile) []models.BusinessPermiss
 	}
 	if profile.BusinessRole == models.BusinessRolePurchasing || profile.BusinessRole == models.BusinessRoleController {
 		allowed[models.PermissionInventoryRead] = true
+	}
+	if profile.BusinessRole == models.BusinessRolePurchasing {
+		allowed[models.PermissionPurchasingRead] = true
+		allowed[models.PermissionPurchasingManage] = true
+	}
+	if profile.BusinessRole == models.BusinessRoleStockService {
+		allowed[models.PermissionPurchasingRead] = true
+		allowed[models.PermissionPurchasingReceive] = true
 	}
 	for _, override := range profile.PermissionOverrides {
 		allowed[override.Permission] = override.Allowed
