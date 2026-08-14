@@ -31,6 +31,8 @@ cd frontend && npx tsc --noEmit
 
 For every version update, update `README.md` in the same commit with the version number, release details, and verification status. Keep `VERSIONS.md` and `VERSION` consistent with the README.
 
+When a version is complete, commit all version changes and release documentation, then push the current branch. Do not leave a completed version uncommitted or unpushed unless the user explicitly says not to commit or push.
+
 ## Deployment Architecture (CRITICAL)
 
 This repository is a direct fork, not a product that depends on a second LastSaaS backend. Extend the existing Go modular monolith and do not create a parallel authentication, tenant, billing, or admin service.

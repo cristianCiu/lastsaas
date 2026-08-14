@@ -311,3 +311,72 @@ func TestIntegrationStaffProfileSchemaRejectsInvalidDocuments(t *testing.T) {
 		t.Fatal("expected tenant and user identity to be unique")
 	}
 }
+
+func TestIntegrationStockMovementsSchemaRejectsZeroQuantity(t *testing.T) {
+	database, cleanup := testutil.MustConnectTestDB(t)
+	defer cleanup()
+	if err := database.EnsureSchemaValidation(); err != nil {
+		t.Fatalf("apply schema validation: %v", err)
+	}
+	now := time.Now().UTC()
+	base := bson.M{
+		"_id": primitive.NewObjectID(), "postingId": primitive.NewObjectID(), "tenantId": primitive.NewObjectID(),
+		"locationId": primitive.NewObjectID(), "storageAreaId": primitive.NewObjectID(), "itemId": primitive.NewObjectID(), "lineNumber": int32(0),
+		"quantityMicros": int64(0), "effectiveAt": now, "recordedAt": now,
+	}
+	if _, err := database.StockMovements().InsertOne(context.Background(), base); err == nil {
+		t.Fatal("expected zero stock movement quantity to be rejected")
+	}
+	base["_id"] = primitive.NewObjectID()
+	base["quantityMicros"] = int64(1)
+	if _, err := database.StockMovements().InsertOne(context.Background(), base); err != nil {
+		t.Fatalf("valid stock movement rejected: %v", err)
+	}
+}
+
+func TestIntegrationStockCountLifecycleSchemaValues(t *testing.T) {
+	database, cleanup := testutil.MustConnectTestDB(t)
+	defer cleanup()
+	if err := database.EnsureSchemaValidation(); err != nil {
+		t.Fatalf("apply schema validation: %v", err)
+	}
+	now := time.Now().UTC()
+	posting := bson.M{
+		"_id": primitive.NewObjectID(), "tenantId": primitive.NewObjectID(), "locationId": primitive.NewObjectID(),
+		"storageAreaId": primitive.NewObjectID(), "userId": primitive.NewObjectID(), "type": "stock_count",
+		"idempotencyKey": "stock-count-post-key", "requestHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		"effectiveAt": now, "recordedAt": now,
+	}
+	if _, err := database.StockPostings().InsertOne(context.Background(), posting); err != nil {
+		t.Fatalf("stock_count posting type rejected: %v", err)
+	}
+
+	count := bson.M{
+		"_id": primitive.NewObjectID(), "tenantId": primitive.NewObjectID(), "locationId": primitive.NewObjectID(),
+		"storageAreaId": primitive.NewObjectID(), "createdBy": primitive.NewObjectID(), "status": "cancelled",
+		"version": int64(1), "idempotencyKey": "stock-count-lifecycle-key", "requestHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		"createdAt": now, "updatedAt": now, "cancelledAt": now,
+	}
+	if _, err := database.StockCounts().InsertOne(context.Background(), count); err != nil {
+		t.Fatalf("cancelled stock count rejected: %v", err)
+	}
+
+	invalidPosting := bson.M{}
+	for key, value := range posting {
+		invalidPosting[key] = value
+	}
+	invalidPosting["_id"] = primitive.NewObjectID()
+	invalidPosting["type"] = "count_adjustment"
+	if _, err := database.StockPostings().InsertOne(context.Background(), invalidPosting); err == nil {
+		t.Fatal("unknown stock posting type should be rejected")
+	}
+	invalidCount := bson.M{}
+	for key, value := range count {
+		invalidCount[key] = value
+	}
+	invalidCount["_id"] = primitive.NewObjectID()
+	invalidCount["status"] = "abandoned"
+	if _, err := database.StockCounts().InsertOne(context.Background(), invalidCount); err == nil {
+		t.Fatal("unknown stock count status should be rejected")
+	}
+}

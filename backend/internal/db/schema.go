@@ -50,7 +50,111 @@ func AllSchemas() []CollectionSchema {
 		suppliersSchema(),
 		supplierItemsSchema(),
 		importRunsSchema(),
+		stockPostingsSchema(),
+		stockMovementsSchema(),
+		stockBalancesSchema(),
+		stockLotsSchema(),
+		stockCountsSchema(),
+		stockCountLinesSchema(),
+		reconciliationRunsSchema(),
 	}
+}
+
+func stockPostingsSchema() CollectionSchema {
+	return CollectionSchema{Collection: "stock_postings", Critical: true, ValidationLevel: "strict", Schema: bson.M{"$jsonSchema": bson.M{
+		"bsonType": "object", "additionalProperties": false,
+		"required": bson.A{"_id", "tenantId", "locationId", "storageAreaId", "userId", "type", "idempotencyKey", "requestHash", "effectiveAt", "recordedAt"},
+		"properties": bson.M{
+			"_id": bson.M{"bsonType": "objectId"}, "tenantId": bson.M{"bsonType": "objectId"}, "locationId": bson.M{"bsonType": "objectId"}, "storageAreaId": bson.M{"bsonType": "objectId"}, "userId": bson.M{"bsonType": "objectId"},
+			"type":           bson.M{"bsonType": "string", "enum": bson.A{"opening_balance", "manual_adjustment", "reversal", "transfer", "waste", "stock_count"}},
+			"idempotencyKey": bson.M{"bsonType": "string", "minLength": 8, "maxLength": 128}, "requestHash": bson.M{"bsonType": "string", "pattern": `^[0-9a-f]{64}$`},
+			"effectiveAt": bson.M{"bsonType": "date"}, "recordedAt": bson.M{"bsonType": "date"}, "reversalOf": bson.M{"bsonType": "objectId"},
+			"reason":                bson.M{"bsonType": "string", "maxLength": 500, "pattern": `.*\S.*`},
+			"destinationLocationId": bson.M{"bsonType": "objectId"}, "destinationStorageAreaId": bson.M{"bsonType": "objectId"},
+		},
+	}}}
+}
+
+func stockMovementsSchema() CollectionSchema {
+	return CollectionSchema{Collection: "stock_movements", Critical: true, ValidationLevel: "strict", Schema: bson.M{
+		"$jsonSchema": bson.M{
+			"bsonType": "object", "additionalProperties": false,
+			"required": bson.A{"_id", "postingId", "tenantId", "locationId", "storageAreaId", "itemId", "quantityMicros", "effectiveAt", "recordedAt", "lineNumber"},
+			"properties": bson.M{
+				"_id": bson.M{"bsonType": "objectId"}, "postingId": bson.M{"bsonType": "objectId"}, "tenantId": bson.M{"bsonType": "objectId"}, "locationId": bson.M{"bsonType": "objectId"}, "storageAreaId": bson.M{"bsonType": "objectId"}, "itemId": bson.M{"bsonType": "objectId"},
+				"quantityMicros": bson.M{"bsonType": "long", "minimum": int64(-9223372036854775807), "maximum": int64(9223372036854775807)},
+				"effectiveAt":    bson.M{"bsonType": "date"}, "recordedAt": bson.M{"bsonType": "date"},
+				"lotId": bson.M{"bsonType": "objectId"}, "lineNumber": bson.M{"bsonType": "int", "minimum": int32(0)},
+			},
+		},
+		// $expr is a validator-level query expression, not a JSON Schema keyword.
+		"$expr": bson.M{"$ne": bson.A{"$quantityMicros", int64(0)}},
+	}}
+}
+
+func stockBalancesSchema() CollectionSchema {
+	return CollectionSchema{Collection: "stock_balances", Critical: true, ValidationLevel: "strict", Schema: bson.M{"$jsonSchema": bson.M{
+		"bsonType": "object", "additionalProperties": false,
+		"required": bson.A{"_id", "tenantId", "locationId", "storageAreaId", "itemId", "quantityMicros", "updatedAt"},
+		"properties": bson.M{
+			"_id": bson.M{"bsonType": "objectId"}, "tenantId": bson.M{"bsonType": "objectId"}, "locationId": bson.M{"bsonType": "objectId"}, "storageAreaId": bson.M{"bsonType": "objectId"}, "itemId": bson.M{"bsonType": "objectId"},
+			"quantityMicros": bson.M{"bsonType": "long", "minimum": int64(0)}, "updatedAt": bson.M{"bsonType": "date"},
+			"lotId": bson.M{"bsonType": "objectId"},
+		},
+	}}}
+}
+
+func stockLotsSchema() CollectionSchema {
+	return CollectionSchema{Collection: "stock_lots", Critical: true, ValidationLevel: "strict", Schema: bson.M{"$jsonSchema": bson.M{
+		"bsonType": "object", "additionalProperties": false,
+		"required": bson.A{"_id", "tenantId", "itemId", "code", "receivedAt", "status", "createdAt", "updatedAt"},
+		"properties": bson.M{
+			"_id": bson.M{"bsonType": "objectId"}, "tenantId": bson.M{"bsonType": "objectId"}, "itemId": bson.M{"bsonType": "objectId"},
+			"code": bson.M{"bsonType": "string", "minLength": 1, "maxLength": 128, "pattern": `.*\S.*`}, "expiresAt": bson.M{"bsonType": "date"}, "receivedAt": bson.M{"bsonType": "date"},
+			"status": bson.M{"bsonType": "string", "enum": bson.A{"available", "quarantined"}}, "createdAt": bson.M{"bsonType": "date"}, "updatedAt": bson.M{"bsonType": "date"},
+		},
+	}}}
+}
+
+func stockCountsSchema() CollectionSchema {
+	return CollectionSchema{Collection: "stock_counts", Critical: true, ValidationLevel: "strict", Schema: bson.M{"$jsonSchema": bson.M{
+		"bsonType": "object", "additionalProperties": false,
+		"required": bson.A{"_id", "tenantId", "locationId", "storageAreaId", "createdBy", "status", "version", "idempotencyKey", "requestHash", "createdAt", "updatedAt"},
+		"properties": bson.M{
+			"_id": bson.M{"bsonType": "objectId"}, "tenantId": bson.M{"bsonType": "objectId"}, "locationId": bson.M{"bsonType": "objectId"}, "storageAreaId": bson.M{"bsonType": "objectId"}, "createdBy": bson.M{"bsonType": "objectId"},
+			"status": bson.M{"bsonType": "string", "enum": bson.A{"draft", "frozen", "reviewed", "posted", "cancelled"}}, "version": bson.M{"bsonType": "long", "minimum": int64(1)},
+			"idempotencyKey": bson.M{"bsonType": "string", "minLength": 8, "maxLength": 128}, "requestHash": bson.M{"bsonType": "string", "pattern": `^[0-9a-f]{64}$`}, "postIdempotencyKey": bson.M{"bsonType": "string", "minLength": 8, "maxLength": 128}, "postRequestHash": bson.M{"bsonType": "string", "pattern": `^[0-9a-f]{64}$`}, "postPostingId": bson.M{"bsonType": "objectId"},
+			"cutoffAt": bson.M{"bsonType": "date"}, "frozenAt": bson.M{"bsonType": "date"}, "reviewedAt": bson.M{"bsonType": "date"}, "postedAt": bson.M{"bsonType": "date"}, "cancelledAt": bson.M{"bsonType": "date"},
+			"createdAt": bson.M{"bsonType": "date"}, "updatedAt": bson.M{"bsonType": "date"},
+		},
+	}}}
+}
+
+func stockCountLinesSchema() CollectionSchema {
+	return CollectionSchema{Collection: "stock_count_lines", Critical: true, ValidationLevel: "strict", Schema: bson.M{"$jsonSchema": bson.M{
+		"bsonType": "object", "additionalProperties": false,
+		"required": bson.A{"_id", "countId", "tenantId", "locationId", "storageAreaId", "itemId", "snapshotQuantityMicros", "version", "createdAt", "updatedAt"},
+		"properties": bson.M{
+			"_id": bson.M{"bsonType": "objectId"}, "countId": bson.M{"bsonType": "objectId"}, "tenantId": bson.M{"bsonType": "objectId"}, "locationId": bson.M{"bsonType": "objectId"}, "storageAreaId": bson.M{"bsonType": "objectId"}, "itemId": bson.M{"bsonType": "objectId"}, "lotId": bson.M{"bsonType": "objectId"},
+			"snapshotQuantityMicros": bson.M{"bsonType": "long", "minimum": int64(0), "maximum": int64(9223372036854775807)}, "countedQuantityMicros": bson.M{"bsonType": "long", "minimum": int64(0), "maximum": int64(9223372036854775807)},
+			"version": bson.M{"bsonType": "long", "minimum": int64(1)}, "note": bson.M{"bsonType": "string", "maxLength": 500, "pattern": `.*\S.*`}, "createdAt": bson.M{"bsonType": "date"}, "updatedAt": bson.M{"bsonType": "date"},
+		},
+	}}}
+}
+
+func reconciliationRunsSchema() CollectionSchema {
+	return CollectionSchema{Collection: "reconciliation_runs", Critical: true, ValidationLevel: "strict", Schema: bson.M{"$jsonSchema": bson.M{
+		"bsonType": "object", "additionalProperties": false,
+		"required": bson.A{"_id", "tenantId", "userId", "locationId", "cutoffAt", "idempotencyKey", "requestHash", "status", "mismatchCount", "truncated", "mismatches", "createdAt", "completedAt"},
+		"properties": bson.M{
+			"_id": bson.M{"bsonType": "objectId"}, "tenantId": bson.M{"bsonType": "objectId"}, "userId": bson.M{"bsonType": "objectId"}, "locationId": bson.M{"bsonType": "objectId"}, "storageAreaId": bson.M{"bsonType": "objectId"},
+			"cutoffAt": bson.M{"bsonType": "date"}, "idempotencyKey": bson.M{"bsonType": "string", "minLength": 8, "maxLength": 128}, "requestHash": bson.M{"bsonType": "string", "pattern": `^[0-9a-f]{64}$`}, "status": bson.M{"bsonType": "string", "enum": bson.A{"detected", "repaired"}}, "mismatchCount": bson.M{"bsonType": "long", "minimum": int64(0)}, "truncated": bson.M{"bsonType": "bool"},
+			"mismatches": bson.M{"bsonType": "array", "maxItems": 1000, "items": bson.M{"bsonType": "object", "additionalProperties": false, "required": bson.A{"locationId", "storageAreaId", "itemId", "expectedQuantityMicros", "actualQuantityMicros", "deltaMicros"}, "properties": bson.M{
+				"locationId": bson.M{"bsonType": "objectId"}, "storageAreaId": bson.M{"bsonType": "objectId"}, "itemId": bson.M{"bsonType": "objectId"}, "lotId": bson.M{"bsonType": "objectId"}, "expectedQuantityMicros": bson.M{"bsonType": "long"}, "actualQuantityMicros": bson.M{"bsonType": "long"}, "deltaMicros": bson.M{"bsonType": "long"},
+			}}},
+			"createdAt": bson.M{"bsonType": "date"}, "completedAt": bson.M{"bsonType": "date"},
+		},
+	}}}
 }
 
 func importRunsSchema() CollectionSchema {
@@ -133,7 +237,7 @@ func itemsSchema() CollectionSchema {
 					"celery", "cereals-gluten", "crustaceans", "eggs", "fish", "lupin", "milk", "molluscs", "mustard", "nuts", "peanuts", "sesame", "soy", "sulphites",
 				}}},
 				"shelfLifeDays": bson.M{"bsonType": "int", "minimum": 0, "maximum": 36500},
-				"stockable":     bson.M{"bsonType": "bool"}, "isActive": bson.M{"bsonType": "bool"},
+				"stockable":     bson.M{"bsonType": "bool"}, "lotTracking": bson.M{"bsonType": "string", "enum": bson.A{"", "optional", "required"}}, "isActive": bson.M{"bsonType": "bool"},
 				"version": bson.M{"bsonType": "long", "minimum": 1}, "createdAt": bson.M{"bsonType": "date"}, "updatedAt": bson.M{"bsonType": "date"},
 			},
 		}},
@@ -250,7 +354,7 @@ func staffProfilesSchema() CollectionSchema {
 					"locationIds":  bson.M{"bsonType": "array", "uniqueItems": true, "items": bson.M{"bsonType": "objectId"}},
 					"permissionOverrides": bson.M{"bsonType": "array", "items": bson.M{
 						"bsonType": "object", "additionalProperties": false, "required": bson.A{"permission", "allowed"},
-						"properties": bson.M{"permission": bson.M{"bsonType": "string", "enum": bson.A{"storage_areas.read", "storage_areas.manage", "catalog.read", "catalog.manage"}}, "allowed": bson.M{"bsonType": "bool"}},
+						"properties": bson.M{"permission": bson.M{"bsonType": "string", "enum": bson.A{"storage_areas.read", "storage_areas.manage", "catalog.read", "catalog.manage", "inventory.read", "inventory.post", "inventory.manage", "inventory.lot_override"}}, "allowed": bson.M{"bsonType": "bool"}},
 					}},
 					"status":  bson.M{"bsonType": "string", "enum": bson.A{"active", "inactive"}},
 					"version": bson.M{"bsonType": "long", "minimum": 1}, "createdAt": bson.M{"bsonType": "date"}, "updatedAt": bson.M{"bsonType": "date"},
@@ -300,6 +404,8 @@ func storageAreasSchema() CollectionSchema {
 				"type":     bson.M{"bsonType": "string", "enum": bson.A{"refrigerated", "frozen", "bar", "dry", "other"}},
 				"isActive": bson.M{"bsonType": "bool"}, "version": bson.M{"bsonType": "long", "minimum": 1},
 				"createdAt": bson.M{"bsonType": "date"}, "updatedAt": bson.M{"bsonType": "date"},
+				"inventoryFence":     bson.M{"bsonType": "long", "minimum": 0},
+				"activeStockCountId": bson.M{"bsonType": "objectId"},
 			},
 		}},
 	}

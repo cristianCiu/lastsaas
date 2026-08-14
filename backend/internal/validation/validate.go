@@ -2,6 +2,7 @@ package validation
 
 import (
 	"fmt"
+	"math"
 	"regexp"
 	"strings"
 	"time"
@@ -20,6 +21,7 @@ var (
 	languageTagPattern   = regexp.MustCompile(`^[a-z]{2}(?:-[A-Z]{2})?$`)
 	supplierEmailPattern = regexp.MustCompile(`^[^@\s]+@[^@\s]+\.[^@\s]+$`)
 	hexColorPattern      = regexp.MustCompile(`^#[0-9a-f]{6}$`)
+	sha256HexPattern     = regexp.MustCompile(`^[0-9a-f]{64}$`)
 	euAllergenCodes      = map[string]struct{}{
 		"celery": {}, "cereals-gluten": {}, "crustaceans": {}, "eggs": {}, "fish": {},
 		"lupin": {}, "milk": {}, "molluscs": {}, "mustard": {}, "nuts": {},
@@ -104,6 +106,27 @@ func init() {
 	})
 	v.RegisterValidation("staff_profile_status", func(fl validator.FieldLevel) bool {
 		return models.ValidStaffProfileStatus(models.StaffProfileStatus(fl.Field().String()))
+	})
+	v.RegisterValidation("stock_posting_type", func(fl validator.FieldLevel) bool {
+		return models.ValidStockPostingType(models.StockPostingType(fl.Field().String()))
+	})
+	v.RegisterValidation("lot_tracking_mode", func(fl validator.FieldLevel) bool {
+		return models.ValidLotTrackingMode(models.LotTrackingMode(fl.Field().String()))
+	})
+	v.RegisterValidation("lot_status", func(fl validator.FieldLevel) bool {
+		return models.ValidLotStatus(models.LotStatus(fl.Field().String()))
+	})
+	v.RegisterValidation("stock_count_status", func(fl validator.FieldLevel) bool {
+		return models.ValidStockCountStatus(models.StockCountStatus(fl.Field().String()))
+	})
+	v.RegisterValidation("reconciliation_status", func(fl validator.FieldLevel) bool {
+		return models.ValidReconciliationStatus(models.ReconciliationStatus(fl.Field().String()))
+	})
+	v.RegisterValidation("sha256_hex", func(fl validator.FieldLevel) bool {
+		return sha256HexPattern.MatchString(fl.Field().String())
+	})
+	v.RegisterValidation("quantity_micros", func(fl validator.FieldLevel) bool {
+		return fl.Field().Int() != math.MinInt64
 	})
 	v.RegisterValidation("hex_color", func(fl validator.FieldLevel) bool {
 		return hexColorPattern.MatchString(fl.Field().String())

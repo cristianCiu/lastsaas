@@ -104,10 +104,11 @@ Phase 2: master data and import foundation.
 
 ## Active Task
 
-Prepare the V3 inventory journal; import follow-ups remain bounded validation of replica-set transaction coverage when MongoDB is available, plus any import error/reporting refinements.
+V3 inventory journal implementation is complete. Run replica-set transaction coverage when MongoDB is available.
 
 ## Known Follow-Ups
 
 - CI database tests currently depend on the repository's `MONGODB_URI` secret and do not provision a replica set.
+- Run the inventory transaction integration tests against a replica set when `MONGODB_URI` is available.
 - Pilot decisions still needed: first customer segment, kitchen/drinks scope, lot-tracking defaults, costing method, approval policy, and available historical data.
 - The frontend build warns that the main bundle exceeds 500 kB; address through measured route/vendor splitting rather than arbitrary chunk configuration.

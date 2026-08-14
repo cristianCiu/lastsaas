@@ -37,13 +37,15 @@ func ValidStorageAreaType(value StorageAreaType) bool {
 }
 
 type StorageArea struct {
-	ID         primitive.ObjectID `json:"id" bson:"_id,omitempty"`
-	TenantID   primitive.ObjectID `json:"-" bson:"tenantId" validate:"required"`
-	LocationID primitive.ObjectID `json:"locationId" bson:"locationId" validate:"required"`
-	Name       string             `json:"name" bson:"name" validate:"required,min=1,max=200"`
-	Type       StorageAreaType    `json:"type" bson:"type" validate:"required,storage_area_type"`
-	IsActive   bool               `json:"isActive" bson:"isActive"`
-	Version    int64              `json:"version" bson:"version" validate:"gte=1"`
-	CreatedAt  time.Time          `json:"createdAt" bson:"createdAt" validate:"required"`
-	UpdatedAt  time.Time          `json:"updatedAt" bson:"updatedAt" validate:"required"`
+	ID                 primitive.ObjectID  `json:"id" bson:"_id,omitempty"`
+	TenantID           primitive.ObjectID  `json:"-" bson:"tenantId" validate:"required"`
+	LocationID         primitive.ObjectID  `json:"locationId" bson:"locationId" validate:"required"`
+	Name               string              `json:"name" bson:"name" validate:"required,min=1,max=200"`
+	Type               StorageAreaType     `json:"type" bson:"type" validate:"required,storage_area_type"`
+	IsActive           bool                `json:"isActive" bson:"isActive"`
+	Version            int64               `json:"version" bson:"version" validate:"gte=1"`
+	CreatedAt          time.Time           `json:"createdAt" bson:"createdAt" validate:"required"`
+	UpdatedAt          time.Time           `json:"updatedAt" bson:"updatedAt" validate:"required"`
+	InventoryFence     int64               `json:"-" bson:"inventoryFence,omitempty"`
+	ActiveStockCountID *primitive.ObjectID `json:"-" bson:"activeStockCountId,omitempty"`
 }

@@ -17,8 +17,8 @@ func TestStaffProfileDefaultsAndOverrides(t *testing.T) {
 		allLocations  bool
 		permissionLen int
 	}{
-		{models.RoleOwner, models.BusinessRoleCompanyOwner, true, 4},
-		{models.RoleAdmin, models.BusinessRoleOperationsManager, true, 4},
+		{models.RoleOwner, models.BusinessRoleCompanyOwner, true, 8},
+		{models.RoleAdmin, models.BusinessRoleOperationsManager, true, 8},
 		{models.RoleUser, models.BusinessRoleViewer, false, 0},
 	}
 	for _, test := range tests {
@@ -80,5 +80,20 @@ func TestValidateStaffProfileRejectsAmbiguousScopeAndDuplicates(t *testing.T) {
 	profile.BusinessRole = "unknown"
 	if err := ValidateStaffProfile(&profile); err == nil {
 		t.Fatal("expected unknown role to fail")
+	}
+}
+
+func TestInventoryPermissionDefaultsAndOverrides(t *testing.T) {
+	owner := NewDefaultStaffProfile(primitive.NewObjectID(), primitive.NewObjectID(), models.RoleOwner, time.Now())
+	if !HasBusinessPermission(&owner, models.PermissionInventoryPost) || !HasBusinessPermission(&owner, models.PermissionInventoryRead) {
+		t.Fatal("owner should be able to read and post inventory")
+	}
+	viewer := NewDefaultStaffProfile(primitive.NewObjectID(), primitive.NewObjectID(), models.RoleUser, time.Now())
+	if HasBusinessPermission(&viewer, models.PermissionInventoryRead) {
+		t.Fatal("viewer should not read inventory by default")
+	}
+	viewer.PermissionOverrides = []models.PermissionOverride{{Permission: models.PermissionInventoryRead, Allowed: true}}
+	if !HasBusinessPermission(&viewer, models.PermissionInventoryRead) {
+		t.Fatal("inventory read override was ignored")
 	}
 }

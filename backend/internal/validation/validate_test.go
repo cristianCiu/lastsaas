@@ -560,3 +560,57 @@ func TestValidate_ItemConversion(t *testing.T) {
 		}
 	}
 }
+
+func validStockPosting() models.StockPosting {
+	now := time.Now()
+	return models.StockPosting{
+		ID: primitive.NewObjectID(), TenantID: primitive.NewObjectID(), LocationID: primitive.NewObjectID(),
+		StorageAreaID: primitive.NewObjectID(), UserID: primitive.NewObjectID(), Type: models.StockPostingCount,
+		IdempotencyKey: "stock-count-post-key", RequestHash: strings.Repeat("a", 64), EffectiveAt: now, RecordedAt: now,
+	}
+}
+
+func validStockCount() models.StockCount {
+	now := time.Now()
+	return models.StockCount{
+		ID: primitive.NewObjectID(), TenantID: primitive.NewObjectID(), LocationID: primitive.NewObjectID(),
+		StorageAreaID: primitive.NewObjectID(), CreatedBy: primitive.NewObjectID(), Status: models.StockCountCancelled,
+		Version: 1, IdempotencyKey: "stock-count-lifecycle-key", RequestHash: strings.Repeat("b", 64),
+		CreatedAt: now, UpdatedAt: now,
+	}
+}
+
+func TestValidate_StockCountLifecycleValues(t *testing.T) {
+	count := validStockCount()
+	if err := Validate(&count); err != nil {
+		t.Fatalf("cancelled stock count without timestamp should pass: %v", err)
+	}
+	for _, status := range []models.StockCountStatus{models.StockCountDraft, models.StockCountFrozen, models.StockCountReviewed, models.StockCountPosted} {
+		count.Status = status
+		if err := Validate(&count); err != nil {
+			t.Errorf("existing stock count status %q should remain valid: %v", status, err)
+		}
+	}
+	count.Status = models.StockCountCancelled
+	now := time.Now()
+	count.CancelledAt = &now
+	if err := Validate(&count); err != nil {
+		t.Fatalf("cancelled stock count with timestamp should pass: %v", err)
+	}
+
+	count.Status = "abandoned"
+	if err := Validate(&count); err == nil {
+		t.Fatal("unknown stock count status should fail")
+	}
+}
+
+func TestValidate_StockPostingCountType(t *testing.T) {
+	posting := validStockPosting()
+	if err := Validate(&posting); err != nil {
+		t.Fatalf("stock_count posting type should pass: %v", err)
+	}
+	posting.Type = "count_adjustment"
+	if err := Validate(&posting); err == nil {
+		t.Fatal("unknown stock posting type should fail")
+	}
+}

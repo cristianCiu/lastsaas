@@ -91,6 +91,34 @@ func TestRestaurantCollectionsUseStrictCriticalSchemas(t *testing.T) {
 	}
 }
 
+func TestStorageAreaSchemaDefinesOptionalInventoryFields(t *testing.T) {
+	var storageAreas CollectionSchema
+	for _, schema := range AllSchemas() {
+		if schema.Collection == "storage_areas" {
+			storageAreas = schema
+			break
+		}
+	}
+	if storageAreas.Collection == "" {
+		t.Fatal("storage_areas schema missing from AllSchemas")
+	}
+
+	jsonSchema := storageAreas.Schema["$jsonSchema"].(bson.M)
+	properties := jsonSchema["properties"].(bson.M)
+	inventoryFence := properties["inventoryFence"].(bson.M)
+	if inventoryFence["bsonType"] != "long" || inventoryFence["minimum"] != 0 {
+		t.Fatalf("unexpected inventoryFence schema: %#v", inventoryFence)
+	}
+	if properties["activeStockCountId"].(bson.M)["bsonType"] != "objectId" {
+		t.Fatalf("unexpected activeStockCountId schema: %#v", properties["activeStockCountId"])
+	}
+	for _, field := range jsonSchema["required"].(bson.A) {
+		if field == "inventoryFence" || field == "activeStockCountId" {
+			t.Fatalf("storage area field must remain optional: %v", field)
+		}
+	}
+}
+
 func TestStaffProfilesSchemaIsStrictAndComplete(t *testing.T) {
 	var staff CollectionSchema
 	for _, schema := range AllSchemas() {
@@ -139,4 +167,102 @@ func TestTenantBrandingAssetsSchemaIsStrictAndBounded(t *testing.T) {
 	if properties["kind"].(bson.M)["enum"] == nil || properties["contentType"].(bson.M)["enum"] == nil {
 		t.Fatal("tenant branding asset kinds and content types must use allowlists")
 	}
+}
+
+func TestInventorySchemasAreStrictAndRegistered(t *testing.T) {
+	want := map[string]bool{"stock_postings": false, "stock_movements": false, "stock_balances": false, "stock_lots": false, "stock_counts": false, "stock_count_lines": false, "reconciliation_runs": false}
+	for _, schema := range AllSchemas() {
+		if _, ok := want[schema.Collection]; !ok {
+			continue
+		}
+		if !schema.Critical || schema.ValidationLevel != "strict" {
+			t.Errorf("%s must be critical and strict", schema.Collection)
+		}
+		jsonSchema, ok := schema.Schema["$jsonSchema"].(bson.M)
+		if !ok || jsonSchema["additionalProperties"] != false {
+			t.Errorf("%s must reject additional fields", schema.Collection)
+		}
+		if jsonSchema["properties"].(bson.M)["tenantId"] == nil {
+			t.Errorf("%s must be tenant scoped", schema.Collection)
+		}
+		if schema.Collection == "stock_movements" {
+			if _, nested := jsonSchema["$expr"]; nested {
+				t.Fatal("stock movement $expr must not be nested in $jsonSchema")
+			}
+			if _, topLevel := schema.Schema["$expr"]; !topLevel {
+				t.Fatal("stock movement validator must retain a top-level non-zero quantity expression")
+			}
+		}
+		if schema.Collection == "stock_lots" {
+			properties := jsonSchema["properties"].(bson.M)
+			if properties["code"].(bson.M)["maxLength"] != int32(128) && properties["code"].(bson.M)["maxLength"] != 128 {
+				t.Errorf("stock lot code must be bounded: %#v", properties["code"])
+			}
+			if properties["status"].(bson.M)["enum"] == nil || properties["itemId"] == nil {
+				t.Fatal("stock lot schema missing status or item scope")
+			}
+		}
+		if schema.Collection == "stock_counts" || schema.Collection == "stock_count_lines" || schema.Collection == "reconciliation_runs" {
+			if schema.Schema["$jsonSchema"].(bson.M)["required"] == nil {
+				t.Fatalf("%s must declare required workflow fields", schema.Collection)
+			}
+		}
+		if schema.Collection == "reconciliation_runs" {
+			properties := jsonSchema["properties"].(bson.M)
+			if properties["mismatches"].(bson.M)["maxItems"] != int32(1000) && properties["mismatches"].(bson.M)["maxItems"] != 1000 {
+				t.Fatal("reconciliation mismatch summaries must be bounded")
+			}
+		}
+		want[schema.Collection] = true
+	}
+	for collection, found := range want {
+		if !found {
+			t.Errorf("%s schema missing", collection)
+		}
+	}
+}
+
+func TestInventorySchemasAllowCountLifecycleValues(t *testing.T) {
+	var postings, counts CollectionSchema
+	for _, schema := range AllSchemas() {
+		switch schema.Collection {
+		case "stock_postings":
+			postings = schema
+		case "stock_counts":
+			counts = schema
+		}
+	}
+	if postings.Collection == "" || counts.Collection == "" {
+		t.Fatal("inventory schemas missing")
+	}
+
+	postingProperties := postings.Schema["$jsonSchema"].(bson.M)["properties"].(bson.M)
+	postingTypes := postingProperties["type"].(bson.M)["enum"].(bson.A)
+	if !containsSchemaEnum(postingTypes, "stock_count") {
+		t.Fatalf("stock posting schema missing stock_count type: %#v", postingTypes)
+	}
+
+	countSchema := counts.Schema["$jsonSchema"].(bson.M)
+	countProperties := countSchema["properties"].(bson.M)
+	statuses := countProperties["status"].(bson.M)["enum"].(bson.A)
+	if !containsSchemaEnum(statuses, "cancelled") {
+		t.Fatalf("stock count schema missing cancelled status: %#v", statuses)
+	}
+	if cancelledAt, ok := countProperties["cancelledAt"].(bson.M); !ok || cancelledAt["bsonType"] != "date" {
+		t.Fatalf("unexpected cancelledAt schema: %#v", countProperties["cancelledAt"])
+	}
+	for _, field := range countSchema["required"].(bson.A) {
+		if field == "cancelledAt" {
+			t.Fatal("cancelledAt must remain optional")
+		}
+	}
+}
+
+func containsSchemaEnum(values bson.A, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }

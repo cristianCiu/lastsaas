@@ -33,6 +33,10 @@ var allBusinessPermissions = []models.BusinessPermission{
 	models.PermissionStorageAreasManage,
 	models.PermissionCatalogRead,
 	models.PermissionCatalogManage,
+	models.PermissionInventoryRead,
+	models.PermissionInventoryPost,
+	models.PermissionInventoryManage,
+	models.PermissionInventoryLotOverride,
 }
 
 func DefaultBusinessRole(role models.MemberRole) models.BusinessRole {
@@ -212,10 +216,17 @@ func EffectivePermissions(profile *models.StaffProfile) []models.BusinessPermiss
 	if profile.Status != models.StaffProfileActive {
 		return []models.BusinessPermission{}
 	}
-	defaults := profile.BusinessRole == models.BusinessRoleCompanyOwner || profile.BusinessRole == models.BusinessRoleOperationsManager
+	fullDefaults := profile.BusinessRole == models.BusinessRoleCompanyOwner || profile.BusinessRole == models.BusinessRoleOperationsManager
 	allowed := map[models.BusinessPermission]bool{}
 	for _, permission := range allBusinessPermissions {
-		allowed[permission] = defaults
+		allowed[permission] = fullDefaults
+	}
+	if profile.BusinessRole == models.BusinessRoleHeadChef || profile.BusinessRole == models.BusinessRoleStockService {
+		allowed[models.PermissionInventoryRead] = true
+		allowed[models.PermissionInventoryPost] = true
+	}
+	if profile.BusinessRole == models.BusinessRolePurchasing || profile.BusinessRole == models.BusinessRoleController {
+		allowed[models.PermissionInventoryRead] = true
 	}
 	for _, override := range profile.PermissionOverrides {
 		allowed[override.Permission] = override.Allowed
@@ -230,7 +241,41 @@ func EffectivePermissions(profile *models.StaffProfile) []models.BusinessPermiss
 }
 
 func HasBusinessPermission(profile *models.StaffProfile, permission models.BusinessPermission) bool {
+	if permission == models.PermissionInventoryRead || permission == models.PermissionInventoryPost || permission == models.PermissionInventoryManage || permission == models.PermissionInventoryLotOverride {
+		return HasInventoryPermission(profile, permission)
+	}
 	for _, effective := range EffectivePermissions(profile) {
+		if effective == permission {
+			return true
+		}
+	}
+	return false
+}
+
+// EffectiveInventoryPermissions returns the inventory subset of the effective
+// profile permissions. Inventory permissions are location-scoped by
+// RequireAuthorizedLocation.
+func EffectiveInventoryPermissions(profile *models.StaffProfile) []models.BusinessPermission {
+	result := make([]models.BusinessPermission, 0, 3)
+	for _, permission := range allBusinessPermissions {
+		if (permission == models.PermissionInventoryRead || permission == models.PermissionInventoryPost || permission == models.PermissionInventoryManage || permission == models.PermissionInventoryLotOverride) && HasBusinessPermissionFromEffective(profile, permission) {
+			result = append(result, permission)
+		}
+	}
+	return result
+}
+
+func HasBusinessPermissionFromEffective(profile *models.StaffProfile, permission models.BusinessPermission) bool {
+	for _, effective := range EffectivePermissions(profile) {
+		if effective == permission {
+			return true
+		}
+	}
+	return false
+}
+
+func HasInventoryPermission(profile *models.StaffProfile, permission models.BusinessPermission) bool {
+	for _, effective := range EffectiveInventoryPermissions(profile) {
 		if effective == permission {
 			return true
 		}

@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { Database, FileUp, Link2, MapPinned, MapPin, Package, Paintbrush, Receipt, Settings, Tags, Truck, Utensils, Warehouse } from 'lucide-react';
+import { Database, FileUp, Link2, MapPinned, MapPin, Package, Paintbrush, Receipt, Settings, Tags, Truck, Utensils, Warehouse, Boxes } from 'lucide-react';
 
 const items = [
   { path: '/settings', label: 'Account', icon: Settings, end: true },
@@ -15,6 +15,7 @@ const items = [
   { path: '/settings/master-data/suppliers', label: 'Suppliers', icon: Truck },
   { path: '/settings/master-data/supplier-terms', label: 'Supplier terms', icon: Receipt },
   { path: '/settings/imports', label: 'Imports', icon: FileUp },
+  { path: '/inventory', label: 'Inventory', icon: Boxes },
 ];
 
 export default function WorkspaceSettingsNav() {

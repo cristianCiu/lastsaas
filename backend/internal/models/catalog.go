@@ -18,6 +18,7 @@ type Item struct {
 	Allergens     []string           `json:"allergens,omitempty" bson:"allergens,omitempty" validate:"omitempty,dive,eu_allergen"`
 	ShelfLifeDays *int32             `json:"shelfLifeDays,omitempty" bson:"shelfLifeDays,omitempty" validate:"omitempty,gte=0,lte=36500"`
 	Stockable     bool               `json:"stockable" bson:"stockable"`
+	LotTracking   LotTrackingMode    `json:"lotTracking,omitempty" bson:"lotTracking,omitempty" validate:"lot_tracking_mode"`
 	IsActive      bool               `json:"isActive" bson:"isActive"`
 	Version       int64              `json:"version" bson:"version" validate:"gte=1"`
 	CreatedAt     time.Time          `json:"createdAt" bson:"createdAt" validate:"required"`

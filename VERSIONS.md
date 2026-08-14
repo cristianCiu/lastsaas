@@ -1,5 +1,19 @@
 # LastSaaS Version Notes
 
+## v3.0.0 — August 14, 2026
+
+### Inventory Journal And Stock Counts
+- **Append-only inventory journal** — location-scoped balances, postings, movements, lots, expiry, FEFO allocation, transfers, waste, reversals, and reconciliation are available in the Go modular monolith and React application.
+- **Safe stock counts** — freeze-time storage-area fencing blocks conflicting inventory writes. Counts support discovered stock, cancellation, no-op receipts, exact idempotency, recovery after reload, legacy count quarantine, and safe count-line lot identity.
+- **Scoped operations** — inventory references and count recovery use the required read/manage/post access without exposing journal or balance data to operational-only users.
+
+### Verification
+- Backend inventory, product, database, and validation tests pass. The Go build passes.
+- Frontend TypeScript checking and the production build pass. The production build retains the existing main-bundle size warning.
+- Replica-set transaction integration remains pending a configured `MONGODB_URI`.
+
+---
+
 ## v2.0.0 — August 14, 2026
 
 ### Master-Data And Import Foundation

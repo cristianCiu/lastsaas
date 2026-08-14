@@ -21,10 +21,14 @@ const (
 type BusinessPermission string
 
 const (
-	PermissionStorageAreasRead   BusinessPermission = "storage_areas.read"
-	PermissionStorageAreasManage BusinessPermission = "storage_areas.manage"
-	PermissionCatalogRead        BusinessPermission = "catalog.read"
-	PermissionCatalogManage      BusinessPermission = "catalog.manage"
+	PermissionStorageAreasRead     BusinessPermission = "storage_areas.read"
+	PermissionStorageAreasManage   BusinessPermission = "storage_areas.manage"
+	PermissionCatalogRead          BusinessPermission = "catalog.read"
+	PermissionCatalogManage        BusinessPermission = "catalog.manage"
+	PermissionInventoryRead        BusinessPermission = "inventory.read"
+	PermissionInventoryPost        BusinessPermission = "inventory.post"
+	PermissionInventoryManage      BusinessPermission = "inventory.manage"
+	PermissionInventoryLotOverride BusinessPermission = "inventory.lot_override"
 )
 
 type StaffProfileStatus string
@@ -64,7 +68,8 @@ func ValidBusinessRole(role BusinessRole) bool {
 
 func ValidBusinessPermission(permission BusinessPermission) bool {
 	return permission == PermissionStorageAreasRead || permission == PermissionStorageAreasManage ||
-		permission == PermissionCatalogRead || permission == PermissionCatalogManage
+		permission == PermissionCatalogRead || permission == PermissionCatalogManage ||
+		permission == PermissionInventoryRead || permission == PermissionInventoryPost || permission == PermissionInventoryManage || permission == PermissionInventoryLotOverride
 }
 
 func ValidStaffProfileStatus(status StaffProfileStatus) bool {

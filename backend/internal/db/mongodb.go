@@ -113,6 +113,31 @@ func (m *MongoDB) ensureIndexes() {
 			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "target", Value: 1}, {Key: "idempotencyKey", Value: 1}}, Options: options.Index().SetName("import_runs_tenant_target_key_unique").SetUnique(true)},
 			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "createdAt", Value: -1}}, Options: options.Index().SetName("import_runs_tenant_created")},
 		}},
+		{"stock_postings", []mongo.IndexModel{
+			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "idempotencyKey", Value: 1}}, Options: options.Index().SetName("stock_postings_tenant_idempotency_unique").SetUnique(true)},
+			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "locationId", Value: 1}, {Key: "recordedAt", Value: -1}}, Options: options.Index().SetName("stock_postings_tenant_location_recorded")},
+			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "reversalOf", Value: 1}}, Options: options.Index().SetName("stock_postings_reversal_unique").SetUnique(true).SetPartialFilterExpression(bson.M{"reversalOf": bson.M{"$exists": true}})},
+		}},
+		{"stock_movements", []mongo.IndexModel{
+			{Keys: bson.D{{Key: "postingId", Value: 1}, {Key: "lineNumber", Value: 1}}, Options: options.Index().SetName("stock_movements_posting_line").SetUnique(true)},
+			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "locationId", Value: 1}, {Key: "itemId", Value: 1}, {Key: "recordedAt", Value: -1}}, Options: options.Index().SetName("stock_movements_tenant_location_item_recorded")},
+		}},
+		{"stock_balances", []mongo.IndexModel{
+			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "locationId", Value: 1}, {Key: "storageAreaId", Value: 1}, {Key: "itemId", Value: 1}, {Key: "lotId", Value: 1}}, Options: options.Index().SetName("stock_balances_scope_lot_unique").SetUnique(true)},
+		}},
+		{"stock_lots", []mongo.IndexModel{
+			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "itemId", Value: 1}, {Key: "code", Value: 1}}, Options: options.Index().SetName("stock_lots_tenant_item_code_unique").SetUnique(true)},
+			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "itemId", Value: 1}, {Key: "status", Value: 1}, {Key: "expiresAt", Value: 1}, {Key: "receivedAt", Value: 1}, {Key: "_id", Value: 1}}, Options: options.Index().SetName("stock_lots_fefo")},
+		}},
+		{"stock_counts", stockCountIndexModels()},
+		{"stock_count_lines", []mongo.IndexModel{
+			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "countId", Value: 1}, {Key: "storageAreaId", Value: 1}, {Key: "itemId", Value: 1}, {Key: "lotId", Value: 1}}, Options: options.Index().SetName("stock_count_lines_key_unique").SetUnique(true)},
+			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "countId", Value: 1}, {Key: "version", Value: 1}}, Options: options.Index().SetName("stock_count_lines_count_version")},
+		}},
+		{"reconciliation_runs", []mongo.IndexModel{
+			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "idempotencyKey", Value: 1}}, Options: options.Index().SetName("reconciliation_runs_tenant_idempotency_unique").SetUnique(true)},
+			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "locationId", Value: 1}, {Key: "createdAt", Value: -1}}, Options: options.Index().SetName("reconciliation_runs_tenant_location_created")},
+		}},
 		{
 			"locations",
 			[]mongo.IndexModel{
@@ -415,11 +440,18 @@ func (m *MongoDB) ensureIndexes() {
 		"api_keys": true, "config_vars": true, "stripe_mappings": true,
 		"custom_pages": true, "branding_assets": true, "webauthn_credentials": true,
 		"sso_connections": true, "auth_codes": true,
-		"tenant_memberships": true, "locations": true, "restaurant_settings": true, "tenant_branding": true, "location_branding": true, "tenant_branding_assets": true, "storage_areas": true, "staff_profiles": true, "units": true, "categories": true, "items": true, "item_conversions": true, "suppliers": true, "supplier_items": true, "import_runs": true,
+		"tenant_memberships": true, "locations": true, "restaurant_settings": true, "tenant_branding": true, "location_branding": true, "tenant_branding_assets": true, "storage_areas": true, "staff_profiles": true, "units": true, "categories": true, "items": true, "item_conversions": true, "suppliers": true, "supplier_items": true, "import_runs": true, "stock_postings": true, "stock_movements": true, "stock_balances": true, "stock_lots": true, "stock_counts": true, "stock_count_lines": true, "reconciliation_runs": true,
 	}
 
 	for _, idx := range indexes {
 		coll := m.Database.Collection(idx.collection)
+		if idx.collection == "stock_movements" {
+			_, _ = coll.Indexes().DropOne(ctx, "stock_movements_posting_unique")
+			_, _ = coll.Indexes().DropOne(ctx, "stock_movements_posting_line")
+		}
+		if idx.collection == "stock_balances" {
+			_, _ = coll.Indexes().DropOne(ctx, "stock_balances_scope_unique")
+		}
 		_, err := coll.Indexes().CreateMany(ctx, idx.models)
 		if err != nil {
 			if criticalCollections[idx.collection] {
@@ -428,6 +460,14 @@ func (m *MongoDB) ensureIndexes() {
 			}
 			slog.Warn("failed to create indexes", "collection", idx.collection, "error", err)
 		}
+	}
+}
+
+func stockCountIndexModels() []mongo.IndexModel {
+	return []mongo.IndexModel{
+		{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "idempotencyKey", Value: 1}}, Options: options.Index().SetName("stock_counts_tenant_idempotency_unique").SetUnique(true)},
+		{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "locationId", Value: 1}, {Key: "createdAt", Value: -1}}, Options: options.Index().SetName("stock_counts_tenant_location_created")},
+		{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "locationId", Value: 1}, {Key: "status", Value: 1}, {Key: "createdAt", Value: -1}, {Key: "_id", Value: -1}}, Options: options.Index().SetName("stock_counts_tenant_location_status_created")},
 	}
 }
 
@@ -635,3 +675,19 @@ func (m *MongoDB) Suppliers() *mongo.Collection     { return m.Database.Collecti
 func (m *MongoDB) SupplierItems() *mongo.Collection { return m.Database.Collection("supplier_items") }
 
 func (m *MongoDB) ImportRuns() *mongo.Collection { return m.Database.Collection("import_runs") }
+
+func (m *MongoDB) StockPostings() *mongo.Collection  { return m.Database.Collection("stock_postings") }
+func (m *MongoDB) StockMovements() *mongo.Collection { return m.Database.Collection("stock_movements") }
+func (m *MongoDB) StockBalances() *mongo.Collection  { return m.Database.Collection("stock_balances") }
+
+func (m *MongoDB) StockLots() *mongo.Collection { return m.Database.Collection("stock_lots") }
+
+func (m *MongoDB) StockCounts() *mongo.Collection { return m.Database.Collection("stock_counts") }
+
+func (m *MongoDB) StockCountLines() *mongo.Collection {
+	return m.Database.Collection("stock_count_lines")
+}
+
+func (m *MongoDB) ReconciliationRuns() *mongo.Collection {
+	return m.Database.Collection("reconciliation_runs")
+}

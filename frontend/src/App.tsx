@@ -50,6 +50,7 @@ import ConversionsPage from './features/master-data/ConversionsPage';
 import SuppliersPage from './features/master-data/SuppliersPage';
 import SupplierTermsPage from './features/master-data/SupplierTermsPage';
 import ImportsPage from './features/imports/ImportsPage';
+import InventoryPage from './features/inventory/InventoryPage';
 
 // Admin pages (lazy — only loaded by root tenant admins)
 const AdminDashboardPage = lazy(() => import('./pages/admin/DashboardPage'));
@@ -187,6 +188,11 @@ export default function App() {
                         <Route path="/settings/master-data/suppliers" element={<SuppliersPage />} />
                         <Route path="/settings/master-data/supplier-terms" element={<SupplierTermsPage />} />
                         <Route path="/settings/imports" element={<ImportsPage />} />
+                        <Route path="/inventory" element={<InventoryPage />} />
+                        <Route path="/inventory/journal" element={<InventoryPage />} />
+                        <Route path="/inventory/lots" element={<InventoryPage />} />
+                        <Route path="/inventory/counts" element={<InventoryPage />} />
+                        <Route path="/inventory/reconciliation" element={<InventoryPage />} />
                         <Route path="/activity" element={<ActivityPage />} />
                         <Route path="/test-entitlements" element={<TestEntitlementsPage />} />
                         <Route path="/messages" element={<Suspense fallback={<LazyFallback />}><AdminMessagesPage /></Suspense>} />
