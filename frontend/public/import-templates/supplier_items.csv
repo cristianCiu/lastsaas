@@ -1,1 +1,1 @@
-supplierCode,itemSKU,supplierSKU,packSizeMicros,moq,unitPriceMinor,currency,leadTimeDays
+supplierCode,itemSKU,supplierSKU,packSizeMicros,moq,unitPriceMinor,currency,leadTimeDays,isActive

@@ -1,5 +1,19 @@
 # LastSaaS Version Notes
 
+## v2.0.0 — August 14, 2026
+
+### Master-Data And Import Foundation
+- **Master data** — the completed foundation covers tenant-scoped units, categories, items, canonical conversions, suppliers, and purchasing terms.
+- **Bounded synchronous CSV imports** — UTF-8 comma/semicolon files support templates, canonical-header mapping, dry runs, transactional applies, idempotency, tenant-scoped runs, and bounded errors, with exact limits of 128 KiB per file and 5,000 rows per import.
+- **Import wizard** — responsive workflow for template selection, column mapping, dry-run review, apply, run history, and errors.
+
+### Verification
+- Focused import/product/validation/handler tests and the Go build pass; frontend TypeScript checking and the production build pass.
+- Full and focused Vitest verification remain environment-blocked by fork-worker timeouts.
+- Replica-set integration tests require a separately configured test database. The configured `lastsaas-dev` database was correctly refused by the test safety guard. No live, Atlas, or Playwright verification is claimed.
+
+---
+
 ## v1.10.0 — August 13, 2026
 
 ### Supplier And Purchasing-Term MVP

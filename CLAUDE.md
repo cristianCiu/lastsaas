@@ -27,6 +27,10 @@ cd backend && go build ./...
 cd frontend && npx tsc --noEmit
 ```
 
+## Release Documentation
+
+For every version update, update `README.md` in the same commit with the version number, release details, and verification status. Keep `VERSIONS.md` and `VERSION` consistent with the README.
+
 ## Deployment Architecture (CRITICAL)
 
 This repository is a direct fork, not a product that depends on a second LastSaaS backend. Extend the existing Go modular monolith and do not create a parallel authentication, tenant, billing, or admin service.

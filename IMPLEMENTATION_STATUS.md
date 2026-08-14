@@ -79,11 +79,13 @@ Phase 2: master data and import foundation.
 - Supplier and purchasing-term UI supports responsive supplier management and term management with tenant-safe item selection, exact quantity and money fields, and lifecycle states.
 - Backend validation and handler tests plus the backend build pass; frontend TypeScript checking and the production build pass, while Vitest remains blocked by environment fork-worker timeouts.
 
-## CSV Import MVP Progress
+## v2.0.0 Master-Data And Import Foundation
 
-- Added bounded UTF-8 comma/semicolon CSV parsing, canonical-header mapping, safe templates, synchronous dry-run/apply endpoints, tenant-scoped import runs, and target/key idempotency indexing for units, categories, items, suppliers, and supplier items.
-- Dry runs and invalid applies do not reserve keys or write catalog/run state; successful apply uses a MongoDB transaction and persists bounded errors/counts.
-- Orchestrator-owned validation remains required for full transaction, atomicity, permissions, isolation, and target integration coverage.
+- Master-data foundation now covers tenant-scoped units, categories, items, canonical conversions, suppliers, and purchasing terms.
+- Bounded synchronous master-data CSV imports support UTF-8 comma/semicolon parsing, templates, canonical-header mapping, dry runs, transactional applies, idempotency, tenant-scoped import runs, and bounded error reporting.
+- Imports enforce exact limits of 128 KiB per file and 5,000 rows per import; the responsive import wizard provides template selection, mapping, dry-run review, apply, run, and error states.
+- `go test ./...` and the Go build pass; `npm ci`, frontend TypeScript checking, and the production build pass. Seventy-three frontend tests passed, but one Vitest fork-worker timeout means the entire run is not green; focused import validation passes.
+- Replica-set import integration tests skip when MongoDB is unavailable. Live, Atlas, and Playwright verification are not claimed here.
 
 ## Baseline Fixes
 
@@ -102,7 +104,7 @@ Phase 2: master data and import foundation.
 
 ## Active Task
 
-Implement the idempotent CSV import foundation.
+Prepare the V3 inventory journal; import follow-ups remain bounded validation of replica-set transaction coverage when MongoDB is available, plus any import error/reporting refinements.
 
 ## Known Follow-Ups
 

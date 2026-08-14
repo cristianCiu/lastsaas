@@ -1,1 +1,1 @@
-sku,name,description,brand,categoryCode,baseUnitCode,allergens,shelfLifeDays,stockable
+sku,name,description,brand,categoryCode,baseUnitCode,allergens,shelfLifeDays,stockable,isActive

@@ -1,1 +1,1 @@
-code,name,contactName,email,phone,orderingDays,defaultLeadTimeDays
+code,name,contactName,email,phone,orderingDays,defaultLeadTimeDays,isActive

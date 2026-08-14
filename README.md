@@ -18,7 +18,7 @@ The bottleneck for building software isn't engineering capacity anymore — it's
 
 This fork preserves LastSaaS as its infrastructure baseline and is evolving it into a multi-tenant restaurant inventory and forecasting product. The original authentication, tenant isolation, billing, administration, telemetry, deployment, and platform-branding capabilities remain the foundation; restaurant product modules are added incrementally in the same Go modular monolith and React application.
 
-The current application version is **1.6.0**. `VERSION` is the runtime version source, while this ledger ties product evolution to immutable Git commits. Planned versions are targets and retain `TBD` until implementation is committed.
+The current application version is **2.0.0**. `VERSION` is the runtime version source, while this ledger ties product evolution to immutable Git commits. Planned versions are targets and retain `TBD` until implementation is committed.
 
 ### Boilerplate Baseline
 
@@ -40,12 +40,12 @@ The current application version is **1.6.0**. `VERSION` is the runtime version s
 | 1.4.0 | [`4c8cf1f`](https://github.com/cristianCiu/lastsaas/commit/4c8cf1f) | Active-location branding UI, self-service overrides, resolved workspace identity, theme application, inheritance preview, and reset workflow. |
 | 1.5.0 | [`aec363f`](https://github.com/cristianCiu/lastsaas/commit/aec363f) | Resumable tenant-scoped restaurant onboarding, persisted setup gates, billing-recovery-safe routing, strict entitlement contracts, downgrade-safe branding, failure-safe workspace provisioning, and expanded isolation coverage. |
 | 1.6.0 | [`991d275`](https://github.com/cristianCiu/lastsaas/commit/991d275) | Tenant-owned unit catalog, centralized exact micro-unit arithmetic, catalog permissions, strict schema/index enforcement, responsive management UI, and tenant-isolation coverage. |
+| 2.0.0 | `—` | Completed master-data and import foundation: units, categories, items, conversions, suppliers, purchasing terms, bounded synchronous CSV imports, and the responsive import wizard. Commit reference not recorded here. |
 
 ### Planned Product Roadmap
 
 | Target app version | Commit | Planned feature |
 |---|---|---|
-| 2.0.0 | `TBD` | Master data and import foundation: fixed-point units, categories, items, suppliers, purchasing terms, idempotent CSV dry runs, fixtures, and mapping reports. |
 | 3.0.0 | `TBD` | Append-only inventory journal: balances, lots/expiry, FEFO, transfers, waste, corrections, mobile stock counts, transactional posting, and reconciliation. |
 | 4.0.0 | `TBD` | Recipes and consumption: versioned recipes/subrecipes, POS mappings, normalized sales and guest actuals, theoretical consumption, reversals, and data-quality queues. |
 | 5.0.0 | `TBD` | Purchasing and goods receipt: approval workflow, delivery calendars, pack/MOQ rounding, variances, lots, and tenant/location-branded order documents. |
