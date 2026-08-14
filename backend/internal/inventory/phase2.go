@@ -64,6 +64,132 @@ type WasteCommand struct {
 	Command
 }
 
+// SaleConsumptionLine is a positive requested quantity. Inventory writes the
+// corresponding negative FEFO allocations as one immutable posting.
+type SaleConsumptionLine struct {
+	ItemID         primitive.ObjectID
+	QuantityMicros int64
+}
+
+type SaleConsumptionCommand struct {
+	TenantID       primitive.ObjectID
+	UserID         primitive.ObjectID
+	LocationID     primitive.ObjectID
+	StorageAreaID  primitive.ObjectID
+	Lines          []SaleConsumptionLine
+	IdempotencyKey string
+	EffectiveAt    time.Time
+	Reason         string
+}
+
+func (s *Service) PostSaleConsumption(ctx context.Context, command SaleConsumptionCommand) (*Result, error) {
+	if err := validateSaleConsumptionCommand(command); err != nil {
+		return nil, err
+	}
+	session, err := s.db.Client.StartSession()
+	if err != nil {
+		return nil, ErrTransactionRequired
+	}
+	defer session.EndSession(ctx)
+	var result *Result
+	_, err = session.WithTransaction(ctx, func(sc mongo.SessionContext) (interface{}, error) {
+		result, err = s.PostSaleConsumptionInTransaction(sc, command)
+		return nil, err
+	})
+	return result, err
+}
+
+// PostSaleConsumptionInTransaction joins a sales import transaction. The
+// caller owns the transaction and must pass its mongo.SessionContext.
+func (s *Service) PostSaleConsumptionInTransaction(ctx mongo.SessionContext, command SaleConsumptionCommand) (*Result, error) {
+	if err := validateSaleConsumptionCommand(command); err != nil {
+		return nil, err
+	}
+	hash := saleConsumptionHash(command)
+	if existing, err := s.findIdempotentMany(ctx, command.TenantID, command.IdempotencyKey, hash); err != nil {
+		return nil, err
+	} else if existing != nil {
+		return existing, nil
+	}
+
+	lines := make([]lineSpec, 0, len(command.Lines))
+	allocatedByItem := make([]struct {
+		item primitive.ObjectID
+		lines []lineSpec
+	}, 0, len(command.Lines))
+	for _, requested := range command.Lines {
+		itemCommand := Command{TenantID: command.TenantID, UserID: command.UserID, LocationID: command.LocationID, StorageAreaID: command.StorageAreaID, ItemID: requested.ItemID, QuantityMicros: -requested.QuantityMicros, EffectiveAt: command.EffectiveAt, Reason: command.Reason}
+		mode, err := s.itemLotMode(ctx, command.TenantID, requested.ItemID)
+		if err != nil {
+			return nil, err
+		}
+		allocated, err := s.allocateOutbound(ctx, itemCommand, mode)
+		if err != nil {
+			return nil, err
+		}
+		for _, line := range allocated {
+			if err := s.verifyReferences(ctx, Command{TenantID: command.TenantID, LocationID: line.LocationID, StorageAreaID: line.StorageAreaID, ItemID: line.ItemID}); err != nil {
+				return nil, err
+			}
+		}
+		allocatedByItem = append(allocatedByItem, struct {
+			item primitive.ObjectID
+			lines []lineSpec
+		}{requested.ItemID, allocated})
+		lines = append(lines, allocated...)
+	}
+	if len(lines) == 0 {
+		return nil, ErrInsufficientStock
+	}
+	scopes := make([]inventoryScope, 0, len(lines)+1)
+	scopes = append(scopes, inventoryScope{TenantID: command.TenantID, LocationID: command.LocationID, StorageAreaID: command.StorageAreaID})
+	for _, line := range lines {
+		scopes = append(scopes, inventoryScope{TenantID: line.TenantID, LocationID: line.LocationID, StorageAreaID: line.StorageAreaID})
+	}
+	if err := s.fenceInventoryScopes(ctx, scopes...); err != nil {
+		return nil, err
+	}
+	for _, item := range allocatedByItem {
+		if err := s.guardAllocatedLots(ctx, command.TenantID, item.item, item.lines); err != nil {
+			return nil, err
+		}
+	}
+	now := time.Now().UTC()
+	effective := command.EffectiveAt.UTC()
+	if effective.IsZero() { effective = now }
+	posting := models.StockPosting{ID: primitive.NewObjectID(), TenantID: command.TenantID, LocationID: command.LocationID, StorageAreaID: command.StorageAreaID, UserID: command.UserID, Type: models.StockPostingSaleConsumption, IdempotencyKey: command.IdempotencyKey, RequestHash: hash, EffectiveAt: effective, RecordedAt: now, Reason: strings.TrimSpace(command.Reason)}
+	if err := validation.Validate(&posting); err != nil { return nil, err }
+	if _, err := s.db.StockPostings().InsertOne(ctx, posting); err != nil { return nil, err }
+	movements := make([]models.StockMovement, 0, len(lines))
+	balances := make([]models.StockBalance, 0, len(lines))
+	for number, line := range lines {
+		movement := models.StockMovement{ID: primitive.NewObjectID(), PostingID: posting.ID, TenantID: command.TenantID, LocationID: line.LocationID, StorageAreaID: line.StorageAreaID, ItemID: line.ItemID, LotID: line.LotID, LineNumber: int32(number), QuantityMicros: line.QuantityMicros, EffectiveAt: effective, RecordedAt: now}
+		if err := validation.Validate(&movement); err != nil { return nil, err }
+		if _, err := s.db.StockMovements().InsertOne(ctx, movement); err != nil { return nil, err }
+		balance, err := s.applyBalanceLine(ctx, line)
+		if err != nil { return nil, err }
+		movements = append(movements, movement)
+		balances = append(balances, *balance)
+	}
+	return &Result{Posting: posting, Movement: movements[0], Balance: balances[0], Movements: movements, Balances: balances}, nil
+}
+
+func validateSaleConsumptionCommand(command SaleConsumptionCommand) error {
+	if command.TenantID.IsZero() || command.UserID.IsZero() || command.LocationID.IsZero() || command.StorageAreaID.IsZero() || len(command.IdempotencyKey) < 8 || len(command.IdempotencyKey) > 128 || len(command.Lines) == 0 {
+		return ErrInvalidReference
+	}
+	for _, line := range command.Lines {
+		if line.ItemID.IsZero() || line.QuantityMicros <= 0 { return ErrInvalidReference }
+	}
+	return nil
+}
+
+func saleConsumptionHash(command SaleConsumptionCommand) string {
+	encoded, _ := json.Marshal(command)
+	digest := sha256.Sum256(encoded)
+	return hex.EncodeToString(digest[:])
+}
+
 type LotCommand struct {
 	TenantID   primitive.ObjectID
 	UserID     primitive.ObjectID
@@ -701,6 +827,49 @@ func (s *Service) reverseMany(ctx context.Context, command ReverseCommand) (*Res
 		return nil, err
 	}
 	return result, nil
+}
+
+// ReverseInTransaction is the transaction-joining counterpart used by
+// normalized sales cancellation. It intentionally uses the same append-only
+// reversal checks as Reverse.
+func (s *Service) ReverseInTransaction(ctx mongo.SessionContext, command ReverseCommand) (*Result, error) {
+	hash := commandHash(Command{TenantID: command.TenantID, UserID: command.UserID, LocationID: command.LocationID}, models.StockPostingReversal, &command.PostingID)
+	if existing, err := s.findIdempotentMany(ctx, command.TenantID, command.IdempotencyKey, hash); err != nil {
+		return nil, err
+	} else if existing != nil { return existing, nil }
+	var original models.StockPosting
+	if err := s.db.StockPostings().FindOne(ctx, bson.M{"_id": command.PostingID, "tenantId": command.TenantID}).Decode(&original); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) { return nil, ErrPostingNotFound }; return nil, err
+	}
+	if !command.LocationID.IsZero() && original.LocationID != command.LocationID { return nil, ErrPostingNotFound }
+	if original.Type == models.StockPostingReversal { return nil, ErrInvalidReference }
+	var prior models.StockPosting
+	if err := s.db.StockPostings().FindOne(ctx, bson.M{"tenantId": command.TenantID, "reversalOf": original.ID}, options.FindOne().SetProjection(bson.M{"_id": 1})).Decode(&prior); err == nil { return nil, ErrPostingAlreadyReversed } else if !errors.Is(err, mongo.ErrNoDocuments) { return nil, err }
+	cursor, err := s.db.StockMovements().Find(ctx, bson.M{"tenantId": command.TenantID, "postingId": original.ID}, options.Find().SetSort(bson.D{{Key: "lineNumber", Value: 1}, {Key: "_id", Value: 1}}))
+	if err != nil { return nil, err }
+	var originals []models.StockMovement
+	if err := cursor.All(ctx, &originals); err != nil { return nil, err }
+	if len(originals) == 0 { return nil, ErrPostingNotFound }
+	lines := make([]lineSpec, 0, len(originals)); scopes := make([]inventoryScope, 0, len(originals))
+	for _, movement := range originals {
+		if movement.TenantID != command.TenantID || movement.QuantityMicros == -1<<63 { return nil, ErrInvalidReference }
+		line := lineSpec{TenantID: command.TenantID, LocationID: movement.LocationID, StorageAreaID: movement.StorageAreaID, ItemID: movement.ItemID, LotID: movement.LotID, QuantityMicros: -movement.QuantityMicros}
+		lines = append(lines, line); scopes = append(scopes, inventoryScope{TenantID: line.TenantID, LocationID: line.LocationID, StorageAreaID: line.StorageAreaID})
+	}
+	if err := s.fenceInventoryScopes(ctx, scopes...); err != nil { return nil, err }
+	now := time.Now().UTC()
+	posting := models.StockPosting{ID: primitive.NewObjectID(), TenantID: command.TenantID, LocationID: original.LocationID, StorageAreaID: original.StorageAreaID, UserID: command.UserID, Type: models.StockPostingReversal, IdempotencyKey: command.IdempotencyKey, RequestHash: hash, EffectiveAt: now, RecordedAt: now, ReversalOf: &original.ID, DestinationLocationID: original.DestinationLocationID, DestinationStorageAreaID: original.DestinationStorageAreaID}
+	if err := validation.Validate(&posting); err != nil { return nil, err }
+	if _, err := s.db.StockPostings().InsertOne(ctx, posting); err != nil { return nil, err }
+	movements := make([]models.StockMovement, 0, len(lines)); balances := make([]models.StockBalance, 0, len(lines))
+	for number, line := range lines {
+		movement := models.StockMovement{ID: primitive.NewObjectID(), PostingID: posting.ID, TenantID: command.TenantID, LocationID: line.LocationID, StorageAreaID: line.StorageAreaID, ItemID: line.ItemID, LotID: line.LotID, LineNumber: int32(number), QuantityMicros: line.QuantityMicros, EffectiveAt: now, RecordedAt: now}
+		if err := validation.Validate(&movement); err != nil { return nil, err }
+		if _, err := s.db.StockMovements().InsertOne(ctx, movement); err != nil { return nil, err }
+		balance, err := s.applyBalanceLine(ctx, line); if err != nil { return nil, err }
+		movements = append(movements, movement); balances = append(balances, *balance)
+	}
+	return &Result{Posting: posting, Movement: movements[0], Balance: balances[0], Movements: movements, Balances: balances}, nil
 }
 
 func (s *Service) CreateLot(ctx context.Context, command LotCommand) (*models.StockLot, error) {

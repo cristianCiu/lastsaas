@@ -1,0 +1,7 @@
+export type RecipeVersionStatus = 'draft' | 'released' | 'retired';
+export type RecipeComponentType = 'item' | 'subrecipe';
+export interface Recipe { id: string; code: string; name: string; description?: string; isActive: boolean; version: number; createdAt: string; updatedAt: string }
+export interface RecipeVersion { id: string; recipeId: string; number: number; outputUnitId: string; portionCount: number; yieldFactorMicros: string; lossFactorMicros: string; effectiveFrom: string; effectiveTo?: string; status: RecipeVersionStatus; version: number; releasedAt?: string; createdAt: string; updatedAt: string }
+export interface RecipeComponent { id: string; recipeVersionId: string; componentType: RecipeComponentType; itemId?: string; subrecipeId?: string; quantityMicros: string; unitId: string; sortOrder: number; }
+export interface ExternalProductMapping { id: string; adapter: string; externalProductId: string; recipeVersionId: string; effectiveFrom: string; effectiveTo?: string; isActive: boolean; version: number; createdAt: string; updatedAt: string }
+export interface RecipeVersionInput { number?: number; outputUnitId: string; portionCount: number; yieldFactorMicros: string; lossFactorMicros: string; effectiveFrom: string; effectiveTo?: string; components: Array<{ componentType: RecipeComponentType; itemId?: string; subrecipeId?: string; quantityMicros: string; unitId: string; sortOrder: number }> }

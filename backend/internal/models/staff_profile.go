@@ -29,6 +29,8 @@ const (
 	PermissionInventoryPost        BusinessPermission = "inventory.post"
 	PermissionInventoryManage      BusinessPermission = "inventory.manage"
 	PermissionInventoryLotOverride BusinessPermission = "inventory.lot_override"
+	PermissionSalesRead            BusinessPermission = "sales.read"
+	PermissionSalesManage          BusinessPermission = "sales.manage"
 )
 
 type StaffProfileStatus string
@@ -68,7 +70,7 @@ func ValidBusinessRole(role BusinessRole) bool {
 
 func ValidBusinessPermission(permission BusinessPermission) bool {
 	return permission == PermissionStorageAreasRead || permission == PermissionStorageAreasManage ||
-		permission == PermissionCatalogRead || permission == PermissionCatalogManage ||
+		permission == PermissionCatalogRead || permission == PermissionCatalogManage || permission == PermissionSalesRead || permission == PermissionSalesManage ||
 		permission == PermissionInventoryRead || permission == PermissionInventoryPost || permission == PermissionInventoryManage || permission == PermissionInventoryLotOverride
 }
 

@@ -73,6 +73,20 @@ func (h *productHandler) dryRunImport(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if request.Target == models.ImportTargetSales {
+		source := strings.ToLower(strings.TrimSpace(request.Source))
+		if source == "" {
+			source = salesImportSourceDefault
+		}
+		plans, errs, err := (&salesEngine{db: h.db}).plan(r.Context(), tenant.ID, salesImportRequest{Content: request.Content, Source: source, Mapping: request.Mapping, IdempotencyKey: request.IdempotencyKey})
+		if err != nil {
+			apierror.Internal(w, r, "Sales import dry run could not be completed")
+			return
+		}
+		salesReport := salesReportFromPlans(plans, errs, true)
+		writeJSON(w, http.StatusOK, salesReport)
+		return
+	}
 	report, err := (&masterimports.Engine{DB: h.db}).DryRun(r.Context(), tenant.ID, user.ID, request)
 	if err != nil {
 		apierror.Internal(w, r, "Import dry run could not be completed")
@@ -95,6 +109,24 @@ func (h *productHandler) applyImport(w http.ResponseWriter, r *http.Request) {
 	}
 	request, ok := h.decodeImport(w, r)
 	if !ok {
+		return
+	}
+	if request.Target == models.ImportTargetSales {
+		profile, profileOK := GetStaffProfileFromContext(r.Context())
+		if !profileOK || (profile.BusinessRole != models.BusinessRoleCompanyOwner && profile.BusinessRole != models.BusinessRoleOperationsManager) {
+			apierror.Forbidden(w, r, "Operations manager permission required")
+			return
+		}
+		source := strings.ToLower(strings.TrimSpace(request.Source))
+		if source == "" {
+			source = salesImportSourceDefault
+		}
+		report, err := h.applySalesImportRequest(r.Context(), tenant.ID, user.ID, salesImportRequest{Content: request.Content, Source: source, Mapping: request.Mapping, IdempotencyKey: request.IdempotencyKey})
+		if err != nil {
+			apierror.Internal(w, r, "Sales import could not be completed")
+			return
+		}
+		writeJSON(w, http.StatusOK, report)
 		return
 	}
 	report, err := (&masterimports.Engine{DB: h.db}).Apply(r.Context(), tenant.ID, user.ID, request)

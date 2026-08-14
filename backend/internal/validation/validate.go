@@ -156,6 +156,57 @@ func init() {
 			models.ImportRunStatus(fl.Field().String()) == models.ImportRunPending ||
 			models.ImportRunStatus(fl.Field().String()) == models.ImportRunFailed
 	})
+	v.RegisterValidation("recipe_version_status", func(fl validator.FieldLevel) bool {
+		return models.ValidRecipeVersionStatus(models.RecipeVersionStatus(fl.Field().String()))
+	})
+	v.RegisterValidation("recipe_component_type", func(fl validator.FieldLevel) bool {
+		return models.ValidRecipeComponentType(models.RecipeComponentType(fl.Field().String()))
+	})
+	v.RegisterValidation("sale_status", func(fl validator.FieldLevel) bool {
+		return models.ValidSaleStatus(models.SaleStatus(fl.Field().String()))
+	})
+	v.RegisterValidation("sales_import_status", func(fl validator.FieldLevel) bool {
+		return models.ValidSalesImportStatus(models.SalesImportStatus(fl.Field().String()))
+	})
+	v.RegisterStructValidation(validateRecipeVersion, models.RecipeVersion{})
+	v.RegisterStructValidation(validateRecipeComponent, models.RecipeComponent{})
+	v.RegisterStructValidation(validateExternalProductMapping, models.ExternalProductMapping{})
+	v.RegisterStructValidation(validateSale, models.Sale{})
+}
+
+func validateRecipeVersion(sl validator.StructLevel) {
+	version := sl.Current().Interface().(models.RecipeVersion)
+	if version.EffectiveTo != nil && !version.EffectiveTo.After(version.EffectiveFrom) {
+		sl.ReportError(version.EffectiveTo, "EffectiveTo", "effectiveTo", "after_effective_from", "")
+	}
+}
+
+func validateRecipeComponent(sl validator.StructLevel) {
+	component := sl.Current().Interface().(models.RecipeComponent)
+	itemSet := component.ItemID != nil && !component.ItemID.IsZero()
+	subrecipeSet := component.SubrecipeID != nil && !component.SubrecipeID.IsZero()
+	if itemSet == subrecipeSet ||
+		(component.ComponentType == models.RecipeComponentItem && !itemSet) ||
+		(component.ComponentType == models.RecipeComponentSubrecipe && !subrecipeSet) {
+		sl.ReportError(component.ComponentType, "ComponentType", "componentType", "component_reference", "")
+	}
+}
+
+func validateExternalProductMapping(sl validator.StructLevel) {
+	mapping := sl.Current().Interface().(models.ExternalProductMapping)
+	if mapping.EffectiveTo != nil && !mapping.EffectiveTo.After(mapping.EffectiveFrom) {
+		sl.ReportError(mapping.EffectiveTo, "EffectiveTo", "effectiveTo", "after_effective_from", "")
+	}
+}
+
+func validateSale(sl validator.StructLevel) {
+	sale := sl.Current().Interface().(models.Sale)
+	if sale.Status == models.SaleStatusCancelled && sale.CancelledAt == nil {
+		sl.ReportError(sale.CancelledAt, "CancelledAt", "cancelledAt", "required_for_cancelled", "")
+	}
+	if sale.Status == models.SaleStatusCompleted && sale.CancelledAt != nil {
+		sl.ReportError(sale.CancelledAt, "CancelledAt", "cancelledAt", "forbidden_for_completed", "")
+	}
 }
 
 func validateSupplier(sl validator.StructLevel) {

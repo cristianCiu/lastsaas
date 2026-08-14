@@ -35,10 +35,11 @@ const (
 	StockPostingTransfer       StockPostingType = "transfer"
 	StockPostingWaste          StockPostingType = "waste"
 	StockPostingCount          StockPostingType = "stock_count"
+	StockPostingSaleConsumption StockPostingType = "sale_consumption"
 )
 
 func ValidStockPostingType(value StockPostingType) bool {
-	return value == StockPostingOpeningBalance || value == StockPostingAdjustment || value == StockPostingReversal || value == StockPostingTransfer || value == StockPostingWaste || value == StockPostingCount
+	return value == StockPostingOpeningBalance || value == StockPostingAdjustment || value == StockPostingReversal || value == StockPostingTransfer || value == StockPostingWaste || value == StockPostingCount || value == StockPostingSaleConsumption
 }
 
 // StockMovement is an immutable signed fixed-point journal line. Quantities

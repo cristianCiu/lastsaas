@@ -51,6 +51,10 @@ import SuppliersPage from './features/master-data/SuppliersPage';
 import SupplierTermsPage from './features/master-data/SupplierTermsPage';
 import ImportsPage from './features/imports/ImportsPage';
 import InventoryPage from './features/inventory/InventoryPage';
+import RecipesPage from './features/recipes/RecipesPage';
+import MappingsPage from './features/recipes/MappingsPage';
+import SalesImportsPage from './features/sales/SalesImportsPage';
+import UnmappedSalesPage from './features/sales/UnmappedSalesPage';
 
 // Admin pages (lazy — only loaded by root tenant admins)
 const AdminDashboardPage = lazy(() => import('./pages/admin/DashboardPage'));
@@ -193,6 +197,12 @@ export default function App() {
                         <Route path="/inventory/lots" element={<InventoryPage />} />
                         <Route path="/inventory/counts" element={<InventoryPage />} />
                         <Route path="/inventory/reconciliation" element={<InventoryPage />} />
+                        <Route path="/recipes" element={<RecipesPage />} />
+                        <Route path="/recipes/:recipeId" element={<RecipesPage />} />
+                        <Route path="/recipes/mappings" element={<MappingsPage />} />
+                        <Route path="/sales/imports" element={<SalesImportsPage />} />
+                        <Route path="/sales/imports/:runId" element={<SalesImportsPage />} />
+                        <Route path="/sales/unmapped" element={<UnmappedSalesPage />} />
                         <Route path="/activity" element={<ActivityPage />} />
                         <Route path="/test-entitlements" element={<TestEntitlementsPage />} />
                         <Route path="/messages" element={<Suspense fallback={<LazyFallback />}><AdminMessagesPage /></Suspense>} />

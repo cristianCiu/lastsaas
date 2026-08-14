@@ -14,11 +14,12 @@ const (
 	ImportTargetItems         ImportTarget = "items"
 	ImportTargetSuppliers     ImportTarget = "suppliers"
 	ImportTargetSupplierItems ImportTarget = "supplier_items"
+	ImportTargetSales         ImportTarget = "sales"
 )
 
 func ValidImportTarget(target ImportTarget) bool {
 	switch target {
-	case ImportTargetUnits, ImportTargetCategories, ImportTargetItems, ImportTargetSuppliers, ImportTargetSupplierItems:
+	case ImportTargetUnits, ImportTargetCategories, ImportTargetItems, ImportTargetSuppliers, ImportTargetSupplierItems, ImportTargetSales:
 		return true
 	default:
 		return false

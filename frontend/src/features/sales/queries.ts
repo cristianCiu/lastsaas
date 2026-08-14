@@ -1,0 +1,1 @@
+export const salesKeys = { all: ['sales'] as const, runs: (p: string, t: string) => [...salesKeys.all, 'runs', p, t] as const, run: (p: string, t: string, id: string) => [...salesKeys.all, 'run', p, t, id] as const, unmapped: (p: string, t: string, source?: string) => [...salesKeys.all, 'unmapped', p, t, source ?? 'all'] as const };

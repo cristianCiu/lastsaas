@@ -20,6 +20,7 @@ import (
 
 type Request struct {
 	Target         models.ImportTarget `json:"target"`
+	Source         string              `json:"source,omitempty"`
 	Content        string              `json:"content"`
 	Mapping        map[string]string   `json:"mapping,omitempty"`
 	IdempotencyKey string              `json:"idempotencyKey"`
@@ -59,6 +60,7 @@ var templateFields = map[models.ImportTarget][]string{
 	models.ImportTargetItems:         {"sku", "name", "description", "brand", "categoryCode", "baseUnitCode", "allergens", "shelfLifeDays", "stockable", "isActive"},
 	models.ImportTargetSuppliers:     {"code", "name", "contactName", "email", "phone", "orderingDays", "defaultLeadTimeDays", "isActive"},
 	models.ImportTargetSupplierItems: {"supplierCode", "itemSKU", "supplierSKU", "packSizeMicros", "moq", "unitPriceMinor", "currency", "leadTimeDays", "isActive"},
+	models.ImportTargetSales:         {"source", "externalSaleId", "externalLineId", "externalProductId", "quantity", "occurredAt", "locationId", "storageAreaId", "status"},
 }
 
 func Template(target models.ImportTarget) (string, error) {

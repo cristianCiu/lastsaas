@@ -11,9 +11,20 @@ package apierror
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"lastsaas/internal/middleware"
 )
+
+// ValidationOrInternal preserves the standard response shape when a handler
+// receives a validation error from a repository and hides persistence errors.
+func ValidationOrInternal(w http.ResponseWriter, r *http.Request, err error, internalMessage string) {
+	if strings.HasPrefix(err.Error(), "validation failed:") || strings.Contains(err.Error(), "must ") || strings.Contains(err.Error(), "required") {
+		Validation(w, r, err.Error())
+		return
+	}
+	Internal(w, r, internalMessage)
+}
 
 // Code represents a machine-readable error code.
 type Code string

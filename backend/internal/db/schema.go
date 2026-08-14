@@ -49,6 +49,14 @@ func AllSchemas() []CollectionSchema {
 		itemConversionsSchema(),
 		suppliersSchema(),
 		supplierItemsSchema(),
+		recipesSchema(),
+		recipeVersionsSchema(),
+		recipeComponentsSchema(),
+		externalProductMappingsSchema(),
+		salesSchema(),
+		salesLinesSchema(),
+		unresolvedSaleLinesSchema(),
+		salesImportRunsSchema(),
 		importRunsSchema(),
 		stockPostingsSchema(),
 		stockMovementsSchema(),
@@ -60,13 +68,133 @@ func AllSchemas() []CollectionSchema {
 	}
 }
 
+func recipesSchema() CollectionSchema {
+	return CollectionSchema{Collection: "recipes", Critical: true, ValidationLevel: "strict", Schema: bson.M{"$jsonSchema": bson.M{
+		"bsonType": "object", "additionalProperties": false,
+		"required": bson.A{"_id", "tenantId", "code", "name", "isActive", "version", "createdAt", "updatedAt"},
+		"properties": bson.M{
+			"_id": bson.M{"bsonType": "objectId"}, "tenantId": bson.M{"bsonType": "objectId"},
+			"code":        bson.M{"bsonType": "string", "pattern": `^[a-z0-9]+(?:-[a-z0-9]+)*$`, "maxLength": 64},
+			"name":        bson.M{"bsonType": "string", "pattern": `.*\S.*`, "maxLength": 160},
+			"description": bson.M{"bsonType": "string", "maxLength": 2000}, "isActive": bson.M{"bsonType": "bool"},
+			"version": bson.M{"bsonType": "long", "minimum": int64(1)}, "createdAt": bson.M{"bsonType": "date"}, "updatedAt": bson.M{"bsonType": "date"},
+		},
+	}}}
+}
+
+func recipeVersionsSchema() CollectionSchema {
+	return CollectionSchema{Collection: "recipe_versions", Critical: true, ValidationLevel: "strict", Schema: bson.M{
+		"$jsonSchema": bson.M{"bsonType": "object", "additionalProperties": false,
+			"required": bson.A{"_id", "tenantId", "recipeId", "number", "outputUnitId", "portionCount", "yieldFactorMicros", "lossFactorMicros", "effectiveFrom", "status", "version", "createdAt", "updatedAt"},
+			"properties": bson.M{
+				"_id": bson.M{"bsonType": "objectId"}, "tenantId": bson.M{"bsonType": "objectId"}, "recipeId": bson.M{"bsonType": "objectId"},
+				"number": bson.M{"bsonType": "long", "minimum": int64(1)}, "outputUnitId": bson.M{"bsonType": "objectId"}, "portionCount": bson.M{"bsonType": "long", "minimum": int64(1)},
+				"yieldFactorMicros": bson.M{"bsonType": "long", "minimum": int64(1), "maximum": int64(1000000)}, "lossFactorMicros": bson.M{"bsonType": "long", "minimum": int64(0), "maximum": int64(1000000)},
+				"effectiveFrom": bson.M{"bsonType": "date"}, "effectiveTo": bson.M{"bsonType": "date"},
+				"status": bson.M{"bsonType": "string", "enum": bson.A{"draft", "released", "retired"}}, "version": bson.M{"bsonType": "long", "minimum": int64(1)},
+				"releasedAt": bson.M{"bsonType": "date"}, "createdAt": bson.M{"bsonType": "date"}, "updatedAt": bson.M{"bsonType": "date"},
+			},
+		},
+		"$expr": bson.M{"$or": bson.A{
+			bson.M{"$eq": bson.A{bson.M{"$type": "$effectiveTo"}, "missing"}},
+			bson.M{"$gt": bson.A{"$effectiveTo", "$effectiveFrom"}},
+		}},
+	}}
+}
+
+func recipeComponentsSchema() CollectionSchema {
+	return CollectionSchema{Collection: "recipe_components", Critical: true, ValidationLevel: "strict", Schema: bson.M{
+		"$jsonSchema": bson.M{"bsonType": "object", "additionalProperties": false,
+			"required": bson.A{"_id", "tenantId", "recipeVersionId", "componentType", "quantityMicros", "unitId", "sortOrder", "createdAt", "updatedAt"},
+			"properties": bson.M{
+				"_id": bson.M{"bsonType": "objectId"}, "tenantId": bson.M{"bsonType": "objectId"}, "recipeVersionId": bson.M{"bsonType": "objectId"},
+				"componentType": bson.M{"bsonType": "string", "enum": bson.A{"item", "subrecipe"}}, "itemId": bson.M{"bsonType": "objectId"}, "subrecipeId": bson.M{"bsonType": "objectId"},
+				"quantityMicros": bson.M{"bsonType": "long", "minimum": int64(1)}, "unitId": bson.M{"bsonType": "objectId"}, "sortOrder": bson.M{"bsonType": "int", "minimum": int32(0), "maximum": int32(1000000)},
+				"createdAt": bson.M{"bsonType": "date"}, "updatedAt": bson.M{"bsonType": "date"},
+			},
+		},
+		"$expr": bson.M{"$or": bson.A{
+			bson.M{"$and": bson.A{bson.M{"$eq": bson.A{"$componentType", "item"}}, bson.M{"$ne": bson.A{"$itemId", nil}}, bson.M{"$eq": bson.A{"$subrecipeId", nil}}}},
+			bson.M{"$and": bson.A{bson.M{"$eq": bson.A{"$componentType", "subrecipe"}}, bson.M{"$eq": bson.A{"$itemId", nil}}, bson.M{"$ne": bson.A{"$subrecipeId", nil}}}},
+		}},
+	}}
+}
+
+func externalProductMappingsSchema() CollectionSchema {
+	return CollectionSchema{Collection: "external_product_mappings", Critical: true, ValidationLevel: "strict", Schema: bson.M{
+		"$jsonSchema": bson.M{"bsonType": "object", "additionalProperties": false,
+			"required": bson.A{"_id", "tenantId", "adapter", "externalProductId", "recipeVersionId", "effectiveFrom", "isActive", "version", "createdAt", "updatedAt"},
+			"properties": bson.M{
+				"_id": bson.M{"bsonType": "objectId"}, "tenantId": bson.M{"bsonType": "objectId"}, "adapter": bson.M{"bsonType": "string", "pattern": `^[a-z0-9]+(?:-[a-z0-9]+)*$`, "maxLength": 64},
+				"externalProductId": bson.M{"bsonType": "string", "pattern": `.*\S.*`, "maxLength": 256}, "recipeVersionId": bson.M{"bsonType": "objectId"},
+				"effectiveFrom": bson.M{"bsonType": "date"}, "effectiveTo": bson.M{"bsonType": "date"}, "isActive": bson.M{"bsonType": "bool"},
+				"version": bson.M{"bsonType": "long", "minimum": int64(1)}, "createdAt": bson.M{"bsonType": "date"}, "updatedAt": bson.M{"bsonType": "date"},
+			},
+		},
+		"$expr": bson.M{"$or": bson.A{bson.M{"$eq": bson.A{bson.M{"$type": "$effectiveTo"}, "missing"}}, bson.M{"$gt": bson.A{"$effectiveTo", "$effectiveFrom"}}}},
+	}}
+}
+
+func salesSchema() CollectionSchema {
+	return CollectionSchema{Collection: "sales", Critical: true, ValidationLevel: "strict", Schema: bson.M{"$jsonSchema": bson.M{
+		"bsonType": "object", "additionalProperties": false,
+		"required": bson.A{"_id", "tenantId", "source", "externalSaleId", "occurredAt", "locationId", "storageAreaId", "status", "version", "createdAt", "updatedAt"},
+		"properties": bson.M{
+			"_id": bson.M{"bsonType": "objectId"}, "tenantId": bson.M{"bsonType": "objectId"},
+			"source": bson.M{"bsonType": "string", "pattern": `^[a-z0-9]+(?:-[a-z0-9]+)*$`, "maxLength": 64}, "externalSaleId": bson.M{"bsonType": "string", "pattern": `.*\S.*`, "maxLength": 128},
+			"occurredAt": bson.M{"bsonType": "date"}, "locationId": bson.M{"bsonType": "objectId"}, "storageAreaId": bson.M{"bsonType": "objectId"},
+			"status": bson.M{"bsonType": "string", "enum": bson.A{"completed", "cancelled"}}, "cancelledAt": bson.M{"bsonType": "date"},
+			"consumptionPostingId": bson.M{"bsonType": "objectId"}, "reversalPostingId": bson.M{"bsonType": "objectId"}, "version": bson.M{"bsonType": "long", "minimum": int64(1)},
+			"createdAt": bson.M{"bsonType": "date"}, "updatedAt": bson.M{"bsonType": "date"},
+		},
+	}}}
+}
+
+func salesLinesSchema() CollectionSchema {
+	return CollectionSchema{Collection: "sales_lines", Critical: true, ValidationLevel: "strict", Schema: bson.M{"$jsonSchema": bson.M{
+		"bsonType": "object", "additionalProperties": false,
+		"required": bson.A{"_id", "tenantId", "saleId", "source", "externalSaleId", "externalLineId", "externalProductId", "quantityMicros", "createdAt", "updatedAt"},
+		"properties": bson.M{
+			"_id": bson.M{"bsonType": "objectId"}, "tenantId": bson.M{"bsonType": "objectId"}, "saleId": bson.M{"bsonType": "objectId"},
+			"source": bson.M{"bsonType": "string", "pattern": `^[a-z0-9]+(?:-[a-z0-9]+)*$`, "maxLength": 64}, "externalSaleId": bson.M{"bsonType": "string", "pattern": `.*\S.*`, "maxLength": 128}, "externalLineId": bson.M{"bsonType": "string", "pattern": `.*\S.*`, "maxLength": 128}, "externalProductId": bson.M{"bsonType": "string", "pattern": `.*\S.*`, "maxLength": 256},
+			"quantityMicros": bson.M{"bsonType": "long", "minimum": int64(1)}, "mappingId": bson.M{"bsonType": "objectId"}, "mappingVersion": bson.M{"bsonType": "long", "minimum": int64(1)}, "recipeVersionId": bson.M{"bsonType": "objectId"}, "recipeVersionNumber": bson.M{"bsonType": "long", "minimum": int64(1)},
+			"createdAt": bson.M{"bsonType": "date"}, "updatedAt": bson.M{"bsonType": "date"},
+		},
+	}}}
+}
+
+func unresolvedSaleLinesSchema() CollectionSchema {
+	return CollectionSchema{Collection: "unresolved_sale_lines", Critical: true, ValidationLevel: "strict", Schema: bson.M{"$jsonSchema": bson.M{
+		"bsonType": "object", "additionalProperties": false,
+		"required": bson.A{"_id", "tenantId", "importRunId", "source", "externalSaleId", "externalLineId", "externalProductId", "occurredAt", "locationId", "storageAreaId", "quantityMicros", "reason", "createdAt"},
+		"properties": bson.M{
+			"_id": bson.M{"bsonType": "objectId"}, "tenantId": bson.M{"bsonType": "objectId"}, "importRunId": bson.M{"bsonType": "objectId"}, "source": bson.M{"bsonType": "string", "pattern": `^[a-z0-9]+(?:-[a-z0-9]+)*$`, "maxLength": 64},
+			"externalSaleId": bson.M{"bsonType": "string", "pattern": `.*\S.*`, "maxLength": 128}, "externalLineId": bson.M{"bsonType": "string", "pattern": `.*\S.*`, "maxLength": 128}, "externalProductId": bson.M{"bsonType": "string", "pattern": `.*\S.*`, "maxLength": 256},
+			"occurredAt": bson.M{"bsonType": "date"}, "locationId": bson.M{"bsonType": "objectId"}, "storageAreaId": bson.M{"bsonType": "objectId"}, "quantityMicros": bson.M{"bsonType": "long", "minimum": int64(1)}, "mappingId": bson.M{"bsonType": "objectId"}, "recipeVersionId": bson.M{"bsonType": "objectId"}, "reason": bson.M{"bsonType": "string", "pattern": `.*\S.*`, "maxLength": 240}, "createdAt": bson.M{"bsonType": "date"},
+		},
+	}}}
+}
+
+func salesImportRunsSchema() CollectionSchema {
+	return CollectionSchema{Collection: "sales_import_runs", Critical: true, ValidationLevel: "strict", Schema: bson.M{"$jsonSchema": bson.M{
+		"bsonType": "object", "additionalProperties": false,
+		"required": bson.A{"_id", "tenantId", "userId", "source", "idempotencyKey", "status", "totalRows", "createdSales", "createdLines", "unresolvedRows", "errors", "createdAt", "updatedAt"},
+		"properties": bson.M{
+			"_id": bson.M{"bsonType": "objectId"}, "tenantId": bson.M{"bsonType": "objectId"}, "userId": bson.M{"bsonType": "objectId"}, "source": bson.M{"bsonType": "string", "pattern": `^[a-z0-9]+(?:-[a-z0-9]+)*$`, "maxLength": 64}, "idempotencyKey": bson.M{"bsonType": "string", "minLength": 8, "maxLength": 128}, "status": bson.M{"bsonType": "string", "enum": bson.A{"pending", "completed", "failed"}},
+			"totalRows": bson.M{"bsonType": "int", "minimum": int32(0), "maximum": int32(5000)}, "createdSales": bson.M{"bsonType": "int", "minimum": int32(0), "maximum": int32(5000)}, "createdLines": bson.M{"bsonType": "int", "minimum": int32(0), "maximum": int32(5000)}, "unresolvedRows": bson.M{"bsonType": "int", "minimum": int32(0), "maximum": int32(5000)},
+			"errors":    bson.M{"bsonType": "array", "maxItems": int32(100), "items": bson.M{"bsonType": "object", "additionalProperties": false, "required": bson.A{"row", "field", "code", "message"}, "properties": bson.M{"row": bson.M{"bsonType": "int", "minimum": int32(2), "maximum": int32(5001)}, "field": bson.M{"bsonType": "string", "maxLength": 64}, "code": bson.M{"bsonType": "string", "maxLength": 64}, "message": bson.M{"bsonType": "string", "maxLength": 240}}}},
+			"createdAt": bson.M{"bsonType": "date"}, "updatedAt": bson.M{"bsonType": "date"},
+		},
+	}}}
+}
+
 func stockPostingsSchema() CollectionSchema {
 	return CollectionSchema{Collection: "stock_postings", Critical: true, ValidationLevel: "strict", Schema: bson.M{"$jsonSchema": bson.M{
 		"bsonType": "object", "additionalProperties": false,
 		"required": bson.A{"_id", "tenantId", "locationId", "storageAreaId", "userId", "type", "idempotencyKey", "requestHash", "effectiveAt", "recordedAt"},
 		"properties": bson.M{
 			"_id": bson.M{"bsonType": "objectId"}, "tenantId": bson.M{"bsonType": "objectId"}, "locationId": bson.M{"bsonType": "objectId"}, "storageAreaId": bson.M{"bsonType": "objectId"}, "userId": bson.M{"bsonType": "objectId"},
-			"type":           bson.M{"bsonType": "string", "enum": bson.A{"opening_balance", "manual_adjustment", "reversal", "transfer", "waste", "stock_count"}},
+			"type":           bson.M{"bsonType": "string", "enum": bson.A{"opening_balance", "manual_adjustment", "reversal", "transfer", "waste", "stock_count", "sale_consumption"}},
 			"idempotencyKey": bson.M{"bsonType": "string", "minLength": 8, "maxLength": 128}, "requestHash": bson.M{"bsonType": "string", "pattern": `^[0-9a-f]{64}$`},
 			"effectiveAt": bson.M{"bsonType": "date"}, "recordedAt": bson.M{"bsonType": "date"}, "reversalOf": bson.M{"bsonType": "objectId"},
 			"reason":                bson.M{"bsonType": "string", "maxLength": 500, "pattern": `.*\S.*`},

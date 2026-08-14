@@ -1,5 +1,22 @@
 # LastSaaS Version Notes
 
+## v4.0.0 — August 14, 2026
+
+### Recipes And Theoretical Consumption
+- **Versioned recipes** — tenant-scoped recipes support immutable released versions, item and subrecipe components, fixed-point quantities, yields, losses, and effective dates.
+- **POS mappings** — external product mappings select the released recipe version that was valid when the sale occurred.
+- **Sales consumption** — bounded CSV imports support dry runs, idempotent applies, normalized sales lines, fixed-point recipe expansion, immutable `sale_consumption` postings, and cancellation reversals.
+- **Operational UI** — responsive recipe, POS mapping, sales import, and unmapped-sales queue screens support the release workflow.
+- **Unmapped sales** — unmapped products remain visible in a tenant-scoped queue. Correct the mapping, then import the sales data again.
+
+### Verification
+- `cd backend && go test ./...` and `cd backend && go build ./...` pass.
+- `cd frontend && npx tsc --noEmit` passes.
+- Replica-set transaction coverage requires a configured `MONGODB_URI`.
+- Frontend Vitest remains environment-blocked by fork-worker timeouts.
+
+---
+
 ## v3.0.0 — August 14, 2026
 
 ### Inventory Journal And Stock Counts
