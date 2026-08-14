@@ -41,8 +41,8 @@ The current application version is **4.0.0**. `VERSION` is the runtime version s
 | 1.5.0 | [`aec363f`](https://github.com/cristianCiu/lastsaas/commit/aec363f) | Resumable tenant-scoped restaurant onboarding, persisted setup gates, billing-recovery-safe routing, strict entitlement contracts, downgrade-safe branding, failure-safe workspace provisioning, and expanded isolation coverage. |
 | 1.6.0 | [`991d275`](https://github.com/cristianCiu/lastsaas/commit/991d275) | Tenant-owned unit catalog, centralized exact micro-unit arithmetic, catalog permissions, strict schema/index enforcement, responsive management UI, and tenant-isolation coverage. |
 | 2.0.0 | `—` | Completed master-data and import foundation: units, categories, items, conversions, suppliers, purchasing terms, bounded synchronous CSV imports, and the responsive import wizard. Commit reference not recorded here. |
-| 3.0.0 | This release | Append-only inventory journal, lots and FEFO, transactional transfers/reversals/reconciliation, safe stock counts, count recovery, and responsive inventory operations UI. |
-| 4.0.0 | This release | Versioned recipes and subrecipes, time-valid POS mappings, idempotent CSV sales imports, theoretical inventory consumption, cancellation reversals, and recipe, mapping, import, and unmapped-sales UI. |
+| 3.0.0 | [`5ff9445`](https://github.com/cristianCiu/lastsaas/commit/5ff9445) | Append-only inventory journal, lots and FEFO, transactional transfers/reversals/reconciliation, safe stock counts, count recovery, and responsive inventory operations UI. |
+| 4.0.0 | [`37ff6a7`](https://github.com/cristianCiu/lastsaas/commit/37ff6a7) | Versioned recipes and subrecipes, time-valid POS mappings, idempotent CSV sales imports, theoretical inventory consumption, cancellation reversals, and recipe, mapping, import, and unmapped-sales UI. |
 
 ### Planned Product Roadmap
 
