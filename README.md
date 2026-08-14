@@ -18,7 +18,7 @@ The bottleneck for building software isn't engineering capacity anymore — it's
 
 This fork preserves LastSaaS as its infrastructure baseline and is evolving it into a multi-tenant restaurant inventory and forecasting product. The original authentication, tenant isolation, billing, administration, telemetry, deployment, and platform-branding capabilities remain the foundation; restaurant product modules are added incrementally in the same Go modular monolith and React application.
 
-The current application version is **4.0.0**. `VERSION` is the runtime version source, while this ledger ties product evolution to immutable Git commits. Planned versions are targets and retain `TBD` until implementation is committed.
+The current application version is **5.0.0**. `VERSION` is the runtime version source, while this ledger ties product evolution to immutable Git commits. Planned versions are targets and retain `TBD` until implementation is committed.
 
 ### Boilerplate Baseline
 
