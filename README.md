@@ -43,12 +43,12 @@ The current application version is **4.0.0**. `VERSION` is the runtime version s
 | 2.0.0 | `—` | Completed master-data and import foundation: units, categories, items, conversions, suppliers, purchasing terms, bounded synchronous CSV imports, and the responsive import wizard. Commit reference not recorded here. |
 | 3.0.0 | [`5ff9445`](https://github.com/cristianCiu/lastsaas/commit/5ff9445) | Append-only inventory journal, lots and FEFO, transactional transfers/reversals/reconciliation, safe stock counts, count recovery, and responsive inventory operations UI. |
 | 4.0.0 | [`37ff6a7`](https://github.com/cristianCiu/lastsaas/commit/37ff6a7) | Versioned recipes and subrecipes, time-valid POS mappings, idempotent CSV sales imports, theoretical inventory consumption, cancellation reversals, and recipe, mapping, import, and unmapped-sales UI. |
+| 5.0.0 | [`a886431`](https://github.com/cristianCiu/lastsaas/commit/a886431) | Purchase orders with manager approval and delivery calendars, partial goods receipts with variance/lot/expiry capture, inventory postings/reversals, and tenant/location-branded PDF and explicit email document workflows. |
 
 ### Planned Product Roadmap
 
 | Target app version | Commit | Planned feature |
 |---|---|---|
-| 5.0.0 | `TBD` | Purchasing and goods receipt: approval workflow, delivery calendars, pack/MOQ rounding, variances, lots, and tenant/location-branded order documents. |
 | 6.0.0 | `TBD` | Forecasting and reorder recommendations: statistical baselines, leased worker jobs, guest/demand/range forecasts, uncertainty bands, backtesting, and manual approval only. |
 | 7.0.0 | `TBD` | Pilot hardening: complete customer onboarding, GDPR lifecycle, backup/restore validation, operational health, accessibility, performance, security, and shadow-mode KPIs. |
 
