@@ -106,6 +106,14 @@ Phase 2: master data and import foundation.
 
 V7 pilot-hardening preparation is complete. External pilot gates remain incomplete.
 
+## Pilot Gate Evidence
+
+- **Gate 1 — Replica-set verification:** Complete. A disposable Atlas test deployment passed sequential `inventory`, `product`, `forecast`, and `offboarding` integration test packages.
+- **Gate 2 — Backup and restore drill:** Incomplete.
+- **Gate 3 — Fly worker deployment and alert drill:** Incomplete.
+- **Gate 4 — Privacy/legal retention approval:** Incomplete.
+- **Gate 5 — Four-week shadow pilot:** Incomplete.
+
 ## Known Follow-Ups
 
 - CI database tests currently depend on the repository's `MONGODB_URI` secret and do not provision a replica set.
