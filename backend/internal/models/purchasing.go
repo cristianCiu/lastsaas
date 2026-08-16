@@ -15,6 +15,7 @@ const (
 	PurchaseOrderDraft             PurchaseOrderStatus = "draft"
 	PurchaseOrderSubmitted         PurchaseOrderStatus = "submitted"
 	PurchaseOrderApproved          PurchaseOrderStatus = "approved"
+	PurchaseOrderSupplierConfirmed PurchaseOrderStatus = "supplier_confirmed"
 	PurchaseOrderOrdered           PurchaseOrderStatus = "ordered"
 	PurchaseOrderPartiallyReceived PurchaseOrderStatus = "partially_received"
 	PurchaseOrderReceived          PurchaseOrderStatus = "received"
@@ -23,13 +24,19 @@ const (
 
 func ValidPurchaseOrderStatus(status PurchaseOrderStatus) bool {
 	switch status {
-	case PurchaseOrderDraft, PurchaseOrderSubmitted, PurchaseOrderApproved,
+	case PurchaseOrderDraft, PurchaseOrderSubmitted, PurchaseOrderApproved, PurchaseOrderSupplierConfirmed,
 		PurchaseOrderOrdered, PurchaseOrderPartiallyReceived, PurchaseOrderReceived,
 		PurchaseOrderCancelled:
 		return true
 	default:
 		return false
 	}
+}
+
+// IsConfirmedInbound is the single purchasing-state gate for future forecast
+// inputs. Approved, ordered, and draft orders are not confirmed inbound.
+func IsConfirmedInbound(status PurchaseOrderStatus) bool {
+	return status == PurchaseOrderSupplierConfirmed
 }
 
 type PurchaseOrderAuditEntry struct {
@@ -40,26 +47,31 @@ type PurchaseOrderAuditEntry struct {
 }
 
 type PurchaseOrder struct {
-	ID           primitive.ObjectID        `json:"id" bson:"_id,omitempty" validate:"required"`
-	TenantID     primitive.ObjectID        `json:"-" bson:"tenantId" validate:"required"`
-	LocationID   primitive.ObjectID        `json:"locationId" bson:"locationId" validate:"required"`
-	SupplierID   primitive.ObjectID        `json:"supplierId" bson:"supplierId" validate:"required"`
-	OrderNumber  string                    `json:"orderNumber" bson:"orderNumber" validate:"required,location_code,max=64"`
-	Status       PurchaseOrderStatus       `json:"status" bson:"status" validate:"required,purchase_order_status"`
-	DeliveryDate time.Time                 `json:"deliveryDate" bson:"deliveryDate" validate:"required"`
-	Notes        string                    `json:"notes,omitempty" bson:"notes,omitempty" validate:"omitempty,max=2000"`
-	CreatedBy    primitive.ObjectID        `json:"createdBy" bson:"createdBy" validate:"required"`
-	SubmittedBy  *primitive.ObjectID       `json:"submittedBy,omitempty" bson:"submittedBy,omitempty"`
-	SubmittedAt  *time.Time                `json:"submittedAt,omitempty" bson:"submittedAt,omitempty"`
-	ApprovedBy   *primitive.ObjectID       `json:"approvedBy,omitempty" bson:"approvedBy,omitempty"`
-	ApprovedAt   *time.Time                `json:"approvedAt,omitempty" bson:"approvedAt,omitempty"`
-	CancelledBy  *primitive.ObjectID       `json:"cancelledBy,omitempty" bson:"cancelledBy,omitempty"`
-	CancelledAt  *time.Time                `json:"cancelledAt,omitempty" bson:"cancelledAt,omitempty"`
-	ApprovalNote string                    `json:"approvalNote,omitempty" bson:"approvalNote,omitempty" validate:"omitempty,max=500"`
-	Audit        []PurchaseOrderAuditEntry `json:"audit" bson:"audit" validate:"required,max=100,dive"`
-	Version      int64                     `json:"version" bson:"version" validate:"gte=1"`
-	CreatedAt    time.Time                 `json:"createdAt" bson:"createdAt" validate:"required"`
-	UpdatedAt    time.Time                 `json:"updatedAt" bson:"updatedAt" validate:"required"`
+	ID                  primitive.ObjectID        `json:"id" bson:"_id,omitempty" validate:"required"`
+	TenantID            primitive.ObjectID        `json:"-" bson:"tenantId" validate:"required"`
+	LocationID          primitive.ObjectID        `json:"locationId" bson:"locationId" validate:"required"`
+	SupplierID          primitive.ObjectID        `json:"supplierId" bson:"supplierId" validate:"required"`
+	OrderNumber         string                    `json:"orderNumber" bson:"orderNumber" validate:"required,location_code,max=64"`
+	Status              PurchaseOrderStatus       `json:"status" bson:"status" validate:"required,purchase_order_status"`
+	DeliveryDate        time.Time                 `json:"deliveryDate" bson:"deliveryDate" validate:"required"`
+	Notes               string                    `json:"notes,omitempty" bson:"notes,omitempty" validate:"omitempty,max=2000"`
+	CreatedBy           primitive.ObjectID        `json:"createdBy" bson:"createdBy" validate:"required"`
+	SubmittedBy         *primitive.ObjectID       `json:"submittedBy,omitempty" bson:"submittedBy,omitempty"`
+	SubmittedAt         *time.Time                `json:"submittedAt,omitempty" bson:"submittedAt,omitempty"`
+	ApprovedBy          *primitive.ObjectID       `json:"approvedBy,omitempty" bson:"approvedBy,omitempty"`
+	ApprovedAt          *time.Time                `json:"approvedAt,omitempty" bson:"approvedAt,omitempty"`
+	SupplierConfirmedBy *primitive.ObjectID       `json:"supplierConfirmedBy,omitempty" bson:"supplierConfirmedBy,omitempty"`
+	SupplierConfirmedAt *time.Time                `json:"supplierConfirmedAt,omitempty" bson:"supplierConfirmedAt,omitempty"`
+	CancelledBy         *primitive.ObjectID       `json:"cancelledBy,omitempty" bson:"cancelledBy,omitempty"`
+	CancelledAt         *time.Time                `json:"cancelledAt,omitempty" bson:"cancelledAt,omitempty"`
+	ApprovalNote           string                    `json:"approvalNote,omitempty" bson:"approvalNote,omitempty" validate:"omitempty,max=500"`
+	ReorderRecommendationID *primitive.ObjectID     `json:"reorderRecommendationId,omitempty" bson:"reorderRecommendationId,omitempty"`
+	IdempotencyKey         string                    `json:"-" bson:"idempotencyKey,omitempty" validate:"omitempty,min=8,max=128"`
+	RequestHash            string                    `json:"-" bson:"requestHash,omitempty" validate:"omitempty,len=64,sha256_hex"`
+	Audit               []PurchaseOrderAuditEntry `json:"audit" bson:"audit" validate:"required,max=100,dive"`
+	Version             int64                     `json:"version" bson:"version" validate:"gte=1"`
+	CreatedAt           time.Time                 `json:"createdAt" bson:"createdAt" validate:"required"`
+	UpdatedAt           time.Time                 `json:"updatedAt" bson:"updatedAt" validate:"required"`
 }
 
 // PurchaseOrderLine is a historical supplier-term snapshot. It must not be

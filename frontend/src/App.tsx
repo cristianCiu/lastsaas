@@ -58,6 +58,8 @@ import UnmappedSalesPage from './features/sales/UnmappedSalesPage';
 import PurchaseOrdersPage, { NewOrderPage } from './features/purchasing/PurchaseOrdersPage';
 import CalendarPage from './features/purchasing/CalendarPage';
 import ReceiptsPage, { ReceivePage } from './features/purchasing/ReceiptsPage';
+import ForecastPage from './features/forecast/ForecastPage';
+import ForecastWorkspace from './features/forecast/ForecastWorkspace';
 
 // Admin pages (lazy — only loaded by root tenant admins)
 const AdminDashboardPage = lazy(() => import('./pages/admin/DashboardPage'));
@@ -213,6 +215,7 @@ export default function App() {
                         <Route path="/purchasing/calendar" element={<CalendarPage />} />
                         <Route path="/purchasing/receipts" element={<ReceiptsPage />} />
                         <Route path="/purchasing/receipts/:receiptId" element={<ReceiptsPage />} />
+                        <Route path="/forecast" element={<ForecastWorkspace />} />
                         <Route path="/activity" element={<ActivityPage />} />
                         <Route path="/test-entitlements" element={<TestEntitlementsPage />} />
                         <Route path="/messages" element={<Suspense fallback={<LazyFallback />}><AdminMessagesPage /></Suspense>} />

@@ -1,5 +1,22 @@
 # LastSaaS Version Notes
 
+## v6.0.0 — August 16, 2026
+
+### Forecasting And Reorder Recommendations
+- **Deterministic forecasts** — sealed inputs, moving-average and weekday-seasonal baselines, rolling backtests, and P10/P50/P90 intervals produce reproducible item-demand forecasts.
+- **Forecast controls** — manual guest plans, policy settings, data maturity, quality flags, and durable leased forecast jobs keep forecast inputs and execution visible.
+- **Explainable reorders** — coverage and reorder recommendations use usable stock, supplier-confirmed inbound quantities, lead/review days, safety stock, and exact pack/MOQ rounding.
+- **Manual purchasing** — users explicitly choose a supplier term to create an editable purchase-order draft. Forecasts never submit, approve, send, or create orders automatically.
+- **Forecast workspace** — responsive demand, coverage, uncertainty, and reorder views include explicit forecast execution and draft-order handoff controls.
+
+### Verification
+- `cd backend && go test ./...` and `cd backend && go build ./...` pass.
+- `cd frontend && npx tsc --noEmit` passes.
+- MongoDB lease and transaction integration coverage requires a configured `MONGODB_URI`.
+- Frontend Vitest remains environment-blocked by fork-worker timeouts.
+
+---
+
 ## v5.0.0 — August 14, 2026
 
 ### Purchasing And Goods Receipt

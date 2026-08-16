@@ -2,6 +2,8 @@ package product
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"math"
 	"net/http"
@@ -32,6 +34,11 @@ var (
 	ErrPurchasingLocation           = errors.New("location is not authorized for purchasing")
 	ErrPurchasingReference          = errors.New("supplier, supplier item, or unit reference is invalid")
 	ErrPurchaseRoundingOverflow     = errors.New("purchase quantity rounding overflow")
+	ErrRecommendationNotFound       = errors.New("reorder recommendation not found")
+	ErrRecommendationStale          = errors.New("reorder recommendation is stale")
+	ErrRecommendationState          = errors.New("reorder recommendation is not ready")
+	ErrRecommendationConflict       = errors.New("reorder recommendation has already been converted")
+	ErrRecommendationIdempotency    = errors.New("idempotency key conflicts with an existing draft")
 )
 
 type purchaseQuantityRounding struct {
@@ -79,6 +86,11 @@ type purchaseOrderCreateRequest struct {
 	DeliveryDate time.Time                  `json:"deliveryDate" validate:"required"`
 	Notes        string                     `json:"notes,omitempty" validate:"omitempty,max=2000"`
 	Lines        []purchaseOrderLineRequest `json:"lines" validate:"required,min=1,max=1000,dive"`
+}
+
+type purchaseOrderDraftFromRecommendationRequest struct {
+	SupplierItemID primitive.ObjectID `json:"supplierItemId" validate:"required"`
+	IdempotencyKey string             `json:"idempotencyKey" validate:"required,min=8,max=128"`
 }
 
 type purchaseOrderUpdateRequest struct {
@@ -208,6 +220,226 @@ func (h *productHandler) validateDeliveryDate(ctx context.Context, tenantID, loc
 	return nil
 }
 
+// nextDeliveryDate chooses the first date offered by an active, scoped
+// supplier calendar. The conversion endpoint intentionally accepts no delivery
+// date: it creates a draft for the next available calendar date and leaves all
+// later purchasing decisions to the normal purchase-order workflow.
+func (h *productHandler) nextDeliveryDate(ctx context.Context, tenantID, locationID, supplierID primitive.ObjectID, now time.Time) (time.Time, error) {
+	cur, err := h.db.DeliveryCalendars().Find(ctx, bson.M{"tenantId": tenantID, "locationId": locationID, "supplierId": supplierID, "isActive": true})
+	if err != nil {
+		return time.Time{}, err
+	}
+	defer cur.Close(ctx)
+	var rules []models.DeliveryCalendarRule
+	if err := cur.All(ctx, &rules); err != nil {
+		return time.Time{}, err
+	}
+	if len(rules) == 0 {
+		return time.Time{}, ErrDeliveryDateInvalid
+	}
+	start := now.UTC()
+	startDay := time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, time.UTC)
+	var selected time.Time
+	for _, rule := range rules {
+		minimum := startDay.AddDate(0, 0, int(rule.LeadTimeDays))
+		for offset := 0; offset <= 3656; offset++ {
+			candidate := startDay.AddDate(0, 0, offset)
+			if isoWeekday(candidate) != rule.Weekday || candidate.Before(minimum) {
+				continue
+			}
+			if candidate.Equal(startDay) && start.Hour()*60+start.Minute() >= int(rule.CutoffMinutes) {
+				continue
+			}
+			if selected.IsZero() || candidate.Before(selected) {
+				selected = candidate
+			}
+			break
+		}
+	}
+	if selected.IsZero() {
+		return time.Time{}, ErrDeliveryDateInvalid
+	}
+	if err := h.validateDeliveryDate(ctx, tenantID, locationID, supplierID, selected, now); err != nil {
+		return time.Time{}, err
+	}
+	return selected, nil
+}
+
+func purchaseOrderDraftRequestHash(recommendationID, supplierItemID primitive.ObjectID) string {
+	sum := sha256.Sum256([]byte(recommendationID.Hex() + "\x00" + supplierItemID.Hex()))
+	return hex.EncodeToString(sum[:])
+}
+
+// createPurchaseOrderInTransaction is shared by the ordinary purchase-order
+// create endpoint and recommendation conversion. Keeping line construction and
+// rounding here prevents the two lanes from drifting apart.
+func (h *productHandler) createPurchaseOrderInTransaction(ctx mongo.SessionContext, tenantID, userID, locationID, supplierID primitive.ObjectID, deliveryDate time.Time, notes string, lineRequests []purchaseOrderLineRequest, recommendationID *primitive.ObjectID, idempotencyKey, requestHash string) (models.PurchaseOrder, []models.PurchaseOrderLine, error) {
+	if err := h.validateDeliveryDate(ctx, tenantID, locationID, supplierID, deliveryDate, time.Now()); err != nil {
+		return models.PurchaseOrder{}, nil, err
+	}
+	now := time.Now().UTC()
+	order := models.PurchaseOrder{ID: primitive.NewObjectID(), TenantID: tenantID, LocationID: locationID, SupplierID: supplierID, OrderNumber: "po-" + primitive.NewObjectID().Hex(), Status: models.PurchaseOrderDraft, DeliveryDate: deliveryDate.UTC(), Notes: strings.TrimSpace(notes), CreatedBy: userID, ReorderRecommendationID: recommendationID, IdempotencyKey: idempotencyKey, RequestHash: requestHash, Audit: []models.PurchaseOrderAuditEntry{{Action: "created", UserID: userID, At: now}}, Version: 1, CreatedAt: now, UpdatedAt: now}
+	if err := validation.Validate(&order); err != nil {
+		return models.PurchaseOrder{}, nil, err
+	}
+	if _, err := h.db.PurchaseOrders().InsertOne(ctx, order); err != nil {
+		return models.PurchaseOrder{}, nil, err
+	}
+	lines := make([]models.PurchaseOrderLine, 0, len(lineRequests))
+	for number, lineRequest := range lineRequests {
+		line, lineErr := h.buildPurchaseLine(ctx, tenantID, locationID, supplierID, int32(number+1), lineRequest)
+		if lineErr != nil {
+			return models.PurchaseOrder{}, nil, lineErr
+		}
+		line.PurchaseOrderID = order.ID
+		if _, err := h.db.PurchaseOrderLines().InsertOne(ctx, line); err != nil {
+			return models.PurchaseOrder{}, nil, err
+		}
+		lines = append(lines, line)
+	}
+	return order, lines, nil
+}
+
+func (h *productHandler) createPurchaseOrderDraftFromRecommendation(w http.ResponseWriter, r *http.Request) {
+	tenant, user, ok := h.importRequest(w, r)
+	if !ok {
+		return
+	}
+	recommendationID, err := primitive.ObjectIDFromHex(mux.Vars(r)["id"])
+	if err != nil {
+		apierror.BadRequest(w, r, "Invalid reorder recommendation ID")
+		return
+	}
+	locationID, err := primitive.ObjectIDFromHex(mux.Vars(r)["locationId"])
+	if err != nil {
+		apierror.BadRequest(w, r, "Invalid forecast location ID")
+		return
+	}
+	var request purchaseOrderDraftFromRecommendationRequest
+	if !decodeStrict(w, r, &request) {
+		return
+	}
+	request.IdempotencyKey = strings.TrimSpace(request.IdempotencyKey)
+	if err := validation.Validate(&request); err != nil {
+		apierror.Validation(w, r, err.Error())
+		return
+	}
+	requestHash := purchaseOrderDraftRequestHash(recommendationID, request.SupplierItemID)
+
+	session, err := h.db.Client.StartSession()
+	if err != nil {
+		apierror.Internal(w, r, "Purchase order transaction unavailable")
+		return
+	}
+	defer session.EndSession(r.Context())
+
+	var order models.PurchaseOrder
+	var lines []models.PurchaseOrderLine
+	idempotent := false
+	_, err = session.WithTransaction(r.Context(), func(sc mongo.SessionContext) (interface{}, error) {
+		// The idempotency lookup is deliberately inside the transaction as well
+		// as before the insert. It makes retries return the exact existing draft
+		// and makes a reused key with a different request an explicit conflict.
+		var existing models.PurchaseOrder
+		lookupErr := h.db.PurchaseOrders().FindOne(sc, bson.M{"tenantId": tenant.ID, "idempotencyKey": request.IdempotencyKey}).Decode(&existing)
+		if lookupErr == nil {
+			if existing.RequestHash != requestHash || existing.ReorderRecommendationID == nil || *existing.ReorderRecommendationID != recommendationID {
+				return nil, ErrRecommendationIdempotency
+			}
+			order = existing
+			lines, err = h.loadPurchaseLines(sc, tenant.ID, order.ID)
+			if err != nil {
+				return nil, err
+			}
+			idempotent = true
+			return nil, nil
+		}
+		if !errors.Is(lookupErr, mongo.ErrNoDocuments) {
+			return nil, lookupErr
+		}
+
+		var linked models.PurchaseOrder
+		linkErr := h.db.PurchaseOrders().FindOne(sc, bson.M{"tenantId": tenant.ID, "reorderRecommendationId": recommendationID}).Decode(&linked)
+		if linkErr == nil {
+			return nil, ErrRecommendationConflict
+		}
+		if !errors.Is(linkErr, mongo.ErrNoDocuments) {
+			return nil, linkErr
+		}
+		if err := h.db.Locations().FindOne(sc, bson.M{"_id": locationID, "tenantId": tenant.ID, "isActive": true}, options.FindOne().SetProjection(bson.M{"_id": 1})).Err(); err != nil {
+			return nil, ErrRecommendationNotFound
+		}
+
+		var recommendation models.ReorderRecommendation
+		if err := h.db.ReorderRecommendations().FindOne(sc, bson.M{"_id": recommendationID, "tenantId": tenant.ID, "locationId": locationID}).Decode(&recommendation); err != nil {
+			if errors.Is(err, mongo.ErrNoDocuments) {
+				return nil, ErrRecommendationNotFound
+			}
+			return nil, err
+		}
+		now := time.Now().UTC()
+		if recommendation.Status != models.ReorderRecommendationReady {
+			return nil, ErrRecommendationState
+		}
+		if recommendation.ExpiresAt != nil && !recommendation.ExpiresAt.After(now) {
+			return nil, ErrRecommendationStale
+		}
+		if recommendation.RequestedQuantityMicros <= 0 {
+			return nil, ErrRecommendationState
+		}
+
+		var supplierItem models.SupplierItem
+		if err := h.db.SupplierItems().FindOne(sc, bson.M{"_id": request.SupplierItemID, "tenantId": tenant.ID, "itemId": recommendation.ItemID, "isActive": true}).Decode(&supplierItem); err != nil {
+			return nil, ErrPurchasingReference
+		}
+		var supplier models.Supplier
+		if err := h.db.Suppliers().FindOne(sc, bson.M{"_id": supplierItem.SupplierID, "tenantId": tenant.ID, "isActive": true}).Decode(&supplier); err != nil {
+			return nil, ErrPurchasingReference
+		}
+		deliveryDate, dateErr := h.nextDeliveryDate(sc, tenant.ID, recommendation.LocationID, supplier.ID, now)
+		if dateErr != nil {
+			return nil, dateErr
+		}
+		order, lines, err = h.createPurchaseOrderInTransaction(sc, tenant.ID, user.ID, recommendation.LocationID, supplier.ID, deliveryDate, "", []purchaseOrderLineRequest{{SupplierItemID: request.SupplierItemID, RequestedQuantityMicros: recommendation.RequestedQuantityMicros}}, &recommendationID, request.IdempotencyKey, requestHash)
+		return nil, err
+	})
+	if err != nil {
+		// A concurrent first request can win either uniqueness constraint. A
+		// retry with the same payload should still observe that winning draft.
+		if mongo.IsDuplicateKeyError(err) {
+			lookupErr := h.db.PurchaseOrders().FindOne(r.Context(), bson.M{"tenantId": tenant.ID, "idempotencyKey": request.IdempotencyKey}).Decode(&order)
+			if lookupErr == nil {
+				if order.RequestHash == requestHash && order.ReorderRecommendationID != nil && *order.ReorderRecommendationID == recommendationID {
+					lines, lookupErr = h.loadPurchaseLines(r.Context(), tenant.ID, order.ID)
+					if lookupErr == nil {
+						idempotent = true
+						err = nil
+					}
+				} else {
+					err = ErrRecommendationIdempotency
+				}
+			} else if errors.Is(lookupErr, mongo.ErrNoDocuments) {
+				var linked models.PurchaseOrder
+				if linkErr := h.db.PurchaseOrders().FindOne(r.Context(), bson.M{"tenantId": tenant.ID, "reorderRecommendationId": recommendationID}).Decode(&linked); linkErr == nil {
+					err = ErrRecommendationConflict
+				}
+			}
+		}
+		if err != nil {
+			h.purchaseError(w, r, err)
+			return
+		}
+	}
+	if !idempotent {
+		h.auditPurchaseOrder(r, &order, "purchase_order.draft_from_recommendation", "Purchase order draft created from reorder recommendation")
+	}
+	status := http.StatusCreated
+	if idempotent {
+		status = http.StatusOK
+	}
+	writeJSON(w, status, map[string]any{"purchaseOrder": order, "lines": lines})
+}
+
 func (h *productHandler) createPurchaseOrder(w http.ResponseWriter, r *http.Request) {
 	tenant, user, ok := h.importRequest(w, r)
 	if !ok {
@@ -234,30 +466,9 @@ func (h *productHandler) createPurchaseOrder(w http.ResponseWriter, r *http.Requ
 	var order models.PurchaseOrder
 	var lines []models.PurchaseOrderLine
 	_, err = session.WithTransaction(r.Context(), func(sc mongo.SessionContext) (interface{}, error) {
-		if err := h.validateDeliveryDate(sc, tenant.ID, request.LocationID, request.SupplierID, request.DeliveryDate, time.Now()); err != nil {
-			return nil, err
-		}
-		now := time.Now().UTC()
-		order = models.PurchaseOrder{ID: primitive.NewObjectID(), TenantID: tenant.ID, LocationID: request.LocationID, SupplierID: request.SupplierID, OrderNumber: "po-" + primitive.NewObjectID().Hex(), Status: models.PurchaseOrderDraft, DeliveryDate: request.DeliveryDate.UTC(), Notes: strings.TrimSpace(request.Notes), CreatedBy: user.ID, Audit: []models.PurchaseOrderAuditEntry{{Action: "created", UserID: user.ID, At: now}}, Version: 1, CreatedAt: now, UpdatedAt: now}
-		if err := validation.Validate(&order); err != nil {
-			return nil, err
-		}
-		if _, err := h.db.PurchaseOrders().InsertOne(sc, order); err != nil {
-			return nil, err
-		}
-		lines = make([]models.PurchaseOrderLine, 0, len(request.Lines))
-		for number, lineRequest := range request.Lines {
-			line, lineErr := h.buildPurchaseLine(sc, tenant.ID, request.LocationID, request.SupplierID, int32(number+1), lineRequest)
-			if lineErr != nil {
-				return nil, lineErr
-			}
-			line.PurchaseOrderID = order.ID
-			if _, err := h.db.PurchaseOrderLines().InsertOne(sc, line); err != nil {
-				return nil, err
-			}
-			lines = append(lines, line)
-		}
-		return nil, nil
+		var createErr error
+		order, lines, createErr = h.createPurchaseOrderInTransaction(sc, tenant.ID, user.ID, request.LocationID, request.SupplierID, request.DeliveryDate, request.Notes, request.Lines, nil, "", "")
+		return nil, createErr
 	})
 	if err != nil {
 		h.purchaseError(w, r, err)
@@ -491,11 +702,17 @@ func (h *productHandler) transitionPurchaseOrder(w http.ResponseWriter, r *http.
 		set = bson.M{"status": target, "submittedBy": user.ID, "submittedAt": now}
 	case models.PurchaseOrderApproved:
 		set = bson.M{"status": target, "approvedBy": user.ID, "approvedAt": now, "approvalNote": strings.TrimSpace(request.Note)}
+	case models.PurchaseOrderSupplierConfirmed:
+		set = bson.M{"status": target, "supplierConfirmedBy": user.ID, "supplierConfirmedAt": now}
 	case models.PurchaseOrderCancelled:
 		set = bson.M{"status": target, "cancelledBy": user.ID, "cancelledAt": now}
 	}
 	set["updatedAt"] = now
-	audit := models.PurchaseOrderAuditEntry{Action: string(target), UserID: user.ID, At: now, Note: strings.TrimSpace(request.Note)}
+	auditAction := string(target)
+	if target == models.PurchaseOrderSupplierConfirmed {
+		auditAction = "supplier-confirmed"
+	}
+	audit := models.PurchaseOrderAuditEntry{Action: auditAction, UserID: user.ID, At: now, Note: strings.TrimSpace(request.Note)}
 	filter := bson.M{"_id": id, "tenantId": tenant.ID, "version": request.Version}
 	var allowed []models.PurchaseOrderStatus
 	switch target {
@@ -503,6 +720,8 @@ func (h *productHandler) transitionPurchaseOrder(w http.ResponseWriter, r *http.
 		allowed = []models.PurchaseOrderStatus{models.PurchaseOrderDraft}
 	case models.PurchaseOrderApproved:
 		allowed = []models.PurchaseOrderStatus{models.PurchaseOrderSubmitted}
+	case models.PurchaseOrderSupplierConfirmed:
+		allowed = []models.PurchaseOrderStatus{models.PurchaseOrderApproved}
 	case models.PurchaseOrderCancelled:
 		allowed = []models.PurchaseOrderStatus{models.PurchaseOrderDraft, models.PurchaseOrderSubmitted, models.PurchaseOrderApproved, models.PurchaseOrderOrdered}
 	}
@@ -531,6 +750,9 @@ func (h *productHandler) submitPurchaseOrder(w http.ResponseWriter, r *http.Requ
 }
 func (h *productHandler) approvePurchaseOrder(w http.ResponseWriter, r *http.Request) {
 	h.transitionPurchaseOrder(w, r, models.PurchaseOrderApproved)
+}
+func (h *productHandler) confirmSupplierPurchaseOrder(w http.ResponseWriter, r *http.Request) {
+	h.transitionPurchaseOrder(w, r, models.PurchaseOrderSupplierConfirmed)
 }
 func (h *productHandler) cancelPurchaseOrder(w http.ResponseWriter, r *http.Request) {
 	h.transitionPurchaseOrder(w, r, models.PurchaseOrderCancelled)
@@ -739,6 +961,12 @@ func (h *productHandler) validateCalendarReferences(ctx context.Context, tenantI
 
 func (h *productHandler) purchaseError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
+	case errors.Is(err, ErrRecommendationNotFound):
+		apierror.NotFound(w, r, "Reorder recommendation not found")
+	case errors.Is(err, ErrRecommendationStale), errors.Is(err, ErrRecommendationState):
+		apierror.Conflict(w, r, err.Error())
+	case errors.Is(err, ErrRecommendationConflict), errors.Is(err, ErrRecommendationIdempotency):
+		apierror.Conflict(w, r, err.Error())
 	case errors.Is(err, ErrPurchaseOrderNotFound):
 		apierror.NotFound(w, r, "Purchase order not found")
 	case errors.Is(err, ErrPurchaseOrderVersionConflict):

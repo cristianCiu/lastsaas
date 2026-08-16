@@ -135,7 +135,7 @@ func (s *Service) receiveGoodsReceiptInTransaction(ctx mongo.SessionContext, com
 		}
 		return nil, err
 	}
-	if order.ApprovedBy == nil || order.ApprovedAt == nil || (order.Status != models.PurchaseOrderApproved && order.Status != models.PurchaseOrderOrdered && order.Status != models.PurchaseOrderPartiallyReceived) {
+	if order.ApprovedBy == nil || order.ApprovedAt == nil || (order.Status != models.PurchaseOrderApproved && order.Status != models.PurchaseOrderSupplierConfirmed && order.Status != models.PurchaseOrderOrdered && order.Status != models.PurchaseOrderPartiallyReceived) {
 		return nil, ErrPurchaseOrderNotReady
 	}
 	cur, err := s.db.PurchaseOrderLines().Find(ctx, bson.M{"tenantId": command.TenantID, "purchaseOrderId": order.ID, "locationId": order.LocationID})
@@ -263,7 +263,7 @@ func (s *Service) receiveGoodsReceiptInTransaction(ctx mongo.SessionContext, com
 		status = models.PurchaseOrderReceived
 	}
 	updatedOrder := order
-	if err := s.db.PurchaseOrders().FindOneAndUpdate(ctx, bson.M{"_id": order.ID, "tenantId": command.TenantID, "version": order.Version, "status": bson.M{"$in": bson.A{models.PurchaseOrderApproved, models.PurchaseOrderOrdered, models.PurchaseOrderPartiallyReceived}}}, bson.M{"$set": bson.M{"status": status, "updatedAt": now}, "$inc": bson.M{"version": int64(1)}, "$push": bson.M{"audit": models.PurchaseOrderAuditEntry{Action: "received", UserID: command.UserID, At: now}}}, options.FindOneAndUpdate().SetReturnDocument(options.After)).Decode(&updatedOrder); err != nil {
+	if err := s.db.PurchaseOrders().FindOneAndUpdate(ctx, bson.M{"_id": order.ID, "tenantId": command.TenantID, "version": order.Version, "status": bson.M{"$in": bson.A{models.PurchaseOrderApproved, models.PurchaseOrderSupplierConfirmed, models.PurchaseOrderOrdered, models.PurchaseOrderPartiallyReceived}}}, bson.M{"$set": bson.M{"status": status, "updatedAt": now}, "$inc": bson.M{"version": int64(1)}, "$push": bson.M{"audit": models.PurchaseOrderAuditEntry{Action: "received", UserID: command.UserID, At: now}}}, options.FindOneAndUpdate().SetReturnDocument(options.After)).Decode(&updatedOrder); err != nil {
 		return nil, ErrPurchaseOrderNotReady
 	}
 	if err := validation.Validate(&receipt); err != nil {

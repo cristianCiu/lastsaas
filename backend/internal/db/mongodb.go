@@ -142,6 +142,8 @@ func (m *MongoDB) ensureIndexes() {
 		{"purchase_orders", []mongo.IndexModel{
 			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "locationId", Value: 1}, {Key: "orderNumber", Value: 1}}, Options: options.Index().SetName("purchase_orders_scope_number_unique").SetUnique(true)},
 			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "locationId", Value: 1}, {Key: "status", Value: 1}, {Key: "deliveryDate", Value: 1}}, Options: options.Index().SetName("purchase_orders_scope_status_delivery")},
+			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "idempotencyKey", Value: 1}}, Options: options.Index().SetName("purchase_orders_tenant_idempotency_unique").SetUnique(true).SetSparse(true)},
+			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "reorderRecommendationId", Value: 1}}, Options: options.Index().SetName("purchase_orders_tenant_recommendation_unique").SetUnique(true).SetSparse(true)},
 		}},
 		{"purchase_order_lines", []mongo.IndexModel{
 			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "locationId", Value: 1}, {Key: "purchaseOrderId", Value: 1}, {Key: "lineNumber", Value: 1}}, Options: options.Index().SetName("purchase_order_lines_scope_order_line_unique").SetUnique(true)},
@@ -160,6 +162,42 @@ func (m *MongoDB) ensureIndexes() {
 		}},
 		{"purchase_order_email_deliveries", []mongo.IndexModel{
 			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "purchaseOrderId", Value: 1}, {Key: "orderVersion", Value: 1}}, Options: options.Index().SetName("purchase_order_email_delivery_unique").SetUnique(true)},
+		}},
+		{"forecast_datasets", []mongo.IndexModel{
+			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "locationId", Value: 1}, {Key: "effectiveFrom", Value: -1}}, Options: options.Index().SetName("forecast_datasets_scope_effective")},
+			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "locationId", Value: 1}, {Key: "contentHash", Value: 1}}, Options: options.Index().SetName("forecast_datasets_scope_hash_unique").SetUnique(true).SetSparse(true)},
+		}},
+		{"forecast_input_rows", []mongo.IndexModel{
+			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "locationId", Value: 1}, {Key: "datasetId", Value: 1}, {Key: "rowNumber", Value: 1}}, Options: options.Index().SetName("forecast_input_rows_dataset_row_unique").SetUnique(true)},
+		}},
+		{"forecast_jobs", []mongo.IndexModel{
+			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "locationId", Value: 1}, {Key: "status", Value: 1}, {Key: "createdAt", Value: 1}}, Options: options.Index().SetName("forecast_jobs_scope_status")},
+			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "locationId", Value: 1}, {Key: "idempotencyKey", Value: 1}}, Options: options.Index().SetName("forecast_jobs_scope_idempotency_unique").SetUnique(true)},
+		}},
+		{"forecast_runs", []mongo.IndexModel{
+			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "locationId", Value: 1}, {Key: "createdAt", Value: -1}}, Options: options.Index().SetName("forecast_runs_scope_created")},
+		}},
+		{"forecast_points", []mongo.IndexModel{
+			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "locationId", Value: 1}, {Key: "runId", Value: 1}, {Key: "itemId", Value: 1}, {Key: "targetDate", Value: 1}}, Options: options.Index().SetName("forecast_points_run_item_date_unique").SetUnique(true)},
+		}},
+		{"forecast_metrics", []mongo.IndexModel{
+			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "locationId", Value: 1}, {Key: "runId", Value: 1}, {Key: "name", Value: 1}}, Options: options.Index().SetName("forecast_metrics_run_name_unique").SetUnique(true)},
+		}},
+		{"forecast_policies", []mongo.IndexModel{
+			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "locationId", Value: 1}, {Key: "name", Value: 1}}, Options: options.Index().SetName("forecast_policies_scope_name_unique").SetUnique(true)},
+		}},
+		{"guest_plans", []mongo.IndexModel{
+			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "locationId", Value: 1}, {Key: "planDate", Value: 1}, {Key: "servicePeriod", Value: 1}}, Options: options.Index().SetName("guest_plans_scope_date_period_unique").SetUnique(true)},
+		}},
+		{"forecast_overrides", []mongo.IndexModel{
+			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "locationId", Value: 1}, {Key: "itemId", Value: 1}, {Key: "targetDate", Value: 1}}, Options: options.Index().SetName("forecast_overrides_scope_item_date")},
+		}},
+		{"reorder_recommendations", []mongo.IndexModel{
+			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "locationId", Value: 1}, {Key: "runId", Value: 1}, {Key: "itemId", Value: 1}}, Options: options.Index().SetName("reorder_recommendations_scope_run_item_unique").SetUnique(true)},
+		}},
+		{"forecast_coverages", []mongo.IndexModel{
+			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "locationId", Value: 1}, {Key: "runId", Value: 1}, {Key: "itemId", Value: 1}}, Options: options.Index().SetName("forecast_coverages_scope_run_item_unique").SetUnique(true)},
+			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "locationId", Value: 1}, {Key: "createdAt", Value: -1}}, Options: options.Index().SetName("forecast_coverages_scope_created")},
 		}},
 		{"import_runs", []mongo.IndexModel{
 			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "target", Value: 1}, {Key: "idempotencyKey", Value: 1}}, Options: options.Index().SetName("import_runs_tenant_target_key_unique").SetUnique(true)},
@@ -492,7 +530,7 @@ func (m *MongoDB) ensureIndexes() {
 		"api_keys": true, "config_vars": true, "stripe_mappings": true,
 		"custom_pages": true, "branding_assets": true, "webauthn_credentials": true,
 		"sso_connections": true, "auth_codes": true,
-		"tenant_memberships": true, "locations": true, "restaurant_settings": true, "tenant_branding": true, "location_branding": true, "tenant_branding_assets": true, "storage_areas": true, "staff_profiles": true, "units": true, "categories": true, "items": true, "item_conversions": true, "suppliers": true, "supplier_items": true, "recipes": true, "recipe_versions": true, "recipe_components": true, "external_product_mappings": true, "sales": true, "sales_lines": true, "unresolved_sale_lines": true, "sales_import_runs": true, "purchase_orders": true, "purchase_order_lines": true, "delivery_calendars": true, "goods_receipts": true, "goods_receipt_lines": true, "purchase_order_email_deliveries": true, "import_runs": true, "stock_postings": true, "stock_movements": true, "stock_balances": true, "stock_lots": true, "stock_counts": true, "stock_count_lines": true, "reconciliation_runs": true,
+		"tenant_memberships": true, "locations": true, "restaurant_settings": true, "tenant_branding": true, "location_branding": true, "tenant_branding_assets": true, "storage_areas": true, "staff_profiles": true, "units": true, "categories": true, "items": true, "item_conversions": true, "suppliers": true, "supplier_items": true, "recipes": true, "recipe_versions": true, "recipe_components": true, "external_product_mappings": true, "sales": true, "sales_lines": true, "unresolved_sale_lines": true, "sales_import_runs": true, "purchase_orders": true, "purchase_order_lines": true, "delivery_calendars": true, "goods_receipts": true, "goods_receipt_lines": true, "purchase_order_email_deliveries": true, "forecast_datasets": true, "forecast_input_rows": true, "forecast_jobs": true, "forecast_runs": true, "forecast_points": true, "forecast_metrics": true, "forecast_policies": true, "guest_plans": true, "forecast_overrides": true, "reorder_recommendations": true, "forecast_coverages": true, "import_runs": true, "stock_postings": true, "stock_movements": true, "stock_balances": true, "stock_lots": true, "stock_counts": true, "stock_count_lines": true, "reconciliation_runs": true,
 	}
 
 	for _, idx := range indexes {
@@ -755,6 +793,32 @@ func (m *MongoDB) GoodsReceiptLines() *mongo.Collection {
 }
 func (m *MongoDB) PurchaseOrderEmailDeliveries() *mongo.Collection {
 	return m.Database.Collection("purchase_order_email_deliveries")
+}
+
+func (m *MongoDB) ForecastDatasets() *mongo.Collection {
+	return m.Database.Collection("forecast_datasets")
+}
+func (m *MongoDB) ForecastInputRows() *mongo.Collection {
+	return m.Database.Collection("forecast_input_rows")
+}
+func (m *MongoDB) ForecastJobs() *mongo.Collection   { return m.Database.Collection("forecast_jobs") }
+func (m *MongoDB) ForecastRuns() *mongo.Collection   { return m.Database.Collection("forecast_runs") }
+func (m *MongoDB) ForecastPoints() *mongo.Collection { return m.Database.Collection("forecast_points") }
+func (m *MongoDB) ForecastMetrics() *mongo.Collection {
+	return m.Database.Collection("forecast_metrics")
+}
+func (m *MongoDB) ForecastPolicies() *mongo.Collection {
+	return m.Database.Collection("forecast_policies")
+}
+func (m *MongoDB) GuestPlans() *mongo.Collection { return m.Database.Collection("guest_plans") }
+func (m *MongoDB) ForecastOverrides() *mongo.Collection {
+	return m.Database.Collection("forecast_overrides")
+}
+func (m *MongoDB) ReorderRecommendations() *mongo.Collection {
+	return m.Database.Collection("reorder_recommendations")
+}
+func (m *MongoDB) ForecastCoverages() *mongo.Collection {
+	return m.Database.Collection("forecast_coverages")
 }
 
 func (m *MongoDB) ImportRuns() *mongo.Collection { return m.Database.Collection("import_runs") }

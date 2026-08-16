@@ -35,6 +35,9 @@ const (
 	PermissionPurchasingReceive    BusinessPermission = "purchasing.receive"
 	PermissionSalesRead            BusinessPermission = "sales.read"
 	PermissionSalesManage          BusinessPermission = "sales.manage"
+	PermissionForecastRead         BusinessPermission = "forecast.read"
+	PermissionForecastManage       BusinessPermission = "forecast.manage"
+	PermissionForecastRun          BusinessPermission = "forecast.run"
 )
 
 type StaffProfileStatus string
@@ -76,7 +79,8 @@ func ValidBusinessPermission(permission BusinessPermission) bool {
 	return permission == PermissionStorageAreasRead || permission == PermissionStorageAreasManage ||
 		permission == PermissionCatalogRead || permission == PermissionCatalogManage || permission == PermissionSalesRead || permission == PermissionSalesManage ||
 		permission == PermissionPurchasingRead || permission == PermissionPurchasingManage || permission == PermissionPurchasingApprove || permission == PermissionPurchasingReceive ||
-		permission == PermissionInventoryRead || permission == PermissionInventoryPost || permission == PermissionInventoryManage || permission == PermissionInventoryLotOverride
+		permission == PermissionInventoryRead || permission == PermissionInventoryPost || permission == PermissionInventoryManage || permission == PermissionInventoryLotOverride ||
+		permission == PermissionForecastRead || permission == PermissionForecastManage || permission == PermissionForecastRun
 }
 
 func ValidStaffProfileStatus(status StaffProfileStatus) bool {

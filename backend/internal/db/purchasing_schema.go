@@ -9,14 +9,24 @@ func purchaseOrdersSchema() CollectionSchema {
 		"properties": bson.M{
 			"_id": bson.M{"bsonType": "objectId"}, "tenantId": bson.M{"bsonType": "objectId"}, "locationId": bson.M{"bsonType": "objectId"}, "supplierId": bson.M{"bsonType": "objectId"},
 			"orderNumber":  bson.M{"bsonType": "string", "pattern": `^[a-z0-9]+(?:-[a-z0-9]+)*$`, "maxLength": 64},
-			"status":       bson.M{"bsonType": "string", "enum": bson.A{"draft", "submitted", "approved", "ordered", "partially_received", "received", "cancelled"}},
+			"status":       bson.M{"bsonType": "string", "enum": bson.A{"draft", "submitted", "approved", "supplier_confirmed", "ordered", "partially_received", "received", "cancelled"}},
 			"deliveryDate": bson.M{"bsonType": "date"}, "notes": bson.M{"bsonType": "string", "maxLength": 2000},
 			"createdBy": bson.M{"bsonType": "objectId"}, "submittedBy": bson.M{"bsonType": "objectId"}, "submittedAt": bson.M{"bsonType": "date"},
-			"approvedBy": bson.M{"bsonType": "objectId"}, "approvedAt": bson.M{"bsonType": "date"}, "cancelledBy": bson.M{"bsonType": "objectId"}, "cancelledAt": bson.M{"bsonType": "date"},
-			"approvalNote": bson.M{"bsonType": "string", "maxLength": 500}, "version": bson.M{"bsonType": "long", "minimum": int64(1)},
+			"approvedBy": bson.M{"bsonType": "objectId"}, "approvedAt": bson.M{"bsonType": "date"}, "supplierConfirmedBy": bson.M{"bsonType": "objectId"}, "supplierConfirmedAt": bson.M{"bsonType": "date"}, "cancelledBy": bson.M{"bsonType": "objectId"}, "cancelledAt": bson.M{"bsonType": "date"},
+			"approvalNote": bson.M{"bsonType": "string", "maxLength": 500}, "reorderRecommendationId": bson.M{"bsonType": "objectId"}, "idempotencyKey": bson.M{"bsonType": "string", "minLength": 8, "maxLength": 128}, "requestHash": bson.M{"bsonType": "string", "pattern": `^[0-9a-f]{64}$`}, "version": bson.M{"bsonType": "long", "minimum": int64(1)},
 			"audit":     bson.M{"bsonType": "array", "maxItems": int32(100), "items": bson.M{"bsonType": "object", "additionalProperties": false, "required": bson.A{"action", "userId", "at"}, "properties": bson.M{"action": bson.M{"bsonType": "string", "pattern": `^[a-z0-9]+(?:-[a-z0-9]+)*$`}, "userId": bson.M{"bsonType": "objectId"}, "at": bson.M{"bsonType": "date"}, "note": bson.M{"bsonType": "string", "maxLength": 500}}}},
 			"createdAt": bson.M{"bsonType": "date"}, "updatedAt": bson.M{"bsonType": "date"},
 		},
+		"$expr": bson.M{"$and": bson.A{
+			bson.M{"$or": bson.A{
+				bson.M{"$ne": bson.A{"$status", "supplier_confirmed"}},
+				bson.M{"$and": bson.A{bson.M{"$ne": bson.A{bson.M{"$type": "$supplierConfirmedBy"}, "missing"}}, bson.M{"$ne": bson.A{bson.M{"$type": "$supplierConfirmedAt"}, "missing"}}}},
+			}},
+			bson.M{"$or": bson.A{
+				bson.M{"$and": bson.A{bson.M{"$eq": bson.A{bson.M{"$type": "$reorderRecommendationId"}, "missing"}}, bson.M{"$eq": bson.A{bson.M{"$type": "$idempotencyKey"}, "missing"}}, bson.M{"$eq": bson.A{bson.M{"$type": "$requestHash"}, "missing"}}}},
+				bson.M{"$and": bson.A{bson.M{"$ne": bson.A{bson.M{"$type": "$reorderRecommendationId"}, "missing"}}, bson.M{"$ne": bson.A{bson.M{"$type": "$idempotencyKey"}, "missing"}}, bson.M{"$ne": bson.A{bson.M{"$type": "$requestHash"}, "missing"}}}},
+			}},
+		}},
 	}}}
 }
 

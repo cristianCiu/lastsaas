@@ -174,6 +174,21 @@ func init() {
 	v.RegisterValidation("goods_receipt_status", func(fl validator.FieldLevel) bool {
 		return models.ValidGoodsReceiptStatus(models.GoodsReceiptStatus(fl.Field().String()))
 	})
+	v.RegisterValidation("forecast_dataset_status", func(fl validator.FieldLevel) bool {
+		return models.ValidForecastDatasetStatus(models.ForecastDatasetStatus(fl.Field().String()))
+	})
+	v.RegisterValidation("forecast_input_kind", func(fl validator.FieldLevel) bool {
+		return models.ValidForecastInputKind(models.ForecastInputKind(fl.Field().String()))
+	})
+	v.RegisterValidation("forecast_job_status", func(fl validator.FieldLevel) bool {
+		return models.ValidForecastJobStatus(models.ForecastJobStatus(fl.Field().String()))
+	})
+	v.RegisterValidation("forecast_run_status", func(fl validator.FieldLevel) bool {
+		return models.ValidForecastRunStatus(models.ForecastRunStatus(fl.Field().String()))
+	})
+	v.RegisterValidation("reorder_recommendation_status", func(fl validator.FieldLevel) bool {
+		return models.ValidReorderRecommendationStatus(models.ReorderRecommendationStatus(fl.Field().String()))
+	})
 	v.RegisterStructValidation(validateRecipeVersion, models.RecipeVersion{})
 	v.RegisterStructValidation(validateRecipeComponent, models.RecipeComponent{})
 	v.RegisterStructValidation(validateExternalProductMapping, models.ExternalProductMapping{})
@@ -183,6 +198,28 @@ func init() {
 	v.RegisterStructValidation(validateGoodsReceiptLine, models.GoodsReceiptLine{})
 	v.RegisterStructValidation(validateGoodsReceipt, models.GoodsReceipt{})
 	v.RegisterStructValidation(validatePurchaseOrderEmailDelivery, models.PurchaseOrderEmailDelivery{})
+	v.RegisterStructValidation(validateForecastDataset, models.ForecastDataset{})
+	v.RegisterStructValidation(validateGuestPlan, models.GuestPlan{})
+}
+
+func validateForecastDataset(sl validator.StructLevel) {
+	dataset := sl.Current().Interface().(models.ForecastDataset)
+	if !dataset.EffectiveTo.After(dataset.EffectiveFrom) {
+		sl.ReportError(dataset.EffectiveTo, "EffectiveTo", "effectiveTo", "after_effective_from", "")
+	}
+	if dataset.Status == models.ForecastDatasetSealed && (dataset.SealedBy == nil || dataset.SealedAt == nil || dataset.ContentHash == "") {
+		sl.ReportError(dataset.Status, "Status", "status", "sealed_metadata_required", "")
+	}
+	if dataset.Status == models.ForecastDatasetDraft && (dataset.SealedBy != nil || dataset.SealedAt != nil || dataset.ContentHash != "") {
+		sl.ReportError(dataset.Status, "Status", "status", "draft_must_not_be_sealed", "")
+	}
+}
+
+func validateGuestPlan(sl validator.StructLevel) {
+	plan := sl.Current().Interface().(models.GuestPlan)
+	if plan.Source != "manual" || plan.IsActual {
+		sl.ReportError(plan.Source, "Source", "source", "manual_non_actual_only", "")
+	}
 }
 
 func validateRecipeVersion(sl validator.StructLevel) {
@@ -227,6 +264,9 @@ func validatePurchaseOrder(sl validator.StructLevel) {
 	}
 	if order.Status == models.PurchaseOrderApproved && (order.ApprovedBy == nil || order.ApprovedAt == nil) {
 		sl.ReportError(order.ApprovedAt, "ApprovedAt", "approvedAt", "required_for_approved", "")
+	}
+	if order.Status == models.PurchaseOrderSupplierConfirmed && (order.SupplierConfirmedBy == nil || order.SupplierConfirmedAt == nil) {
+		sl.ReportError(order.SupplierConfirmedAt, "SupplierConfirmedAt", "supplierConfirmedAt", "required_for_supplier_confirmed", "")
 	}
 	if order.Status == models.PurchaseOrderCancelled && (order.CancelledBy == nil || order.CancelledAt == nil) {
 		sl.ReportError(order.CancelledAt, "CancelledAt", "cancelledAt", "required_for_cancelled", "")

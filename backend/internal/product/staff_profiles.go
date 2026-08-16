@@ -41,6 +41,9 @@ var allBusinessPermissions = []models.BusinessPermission{
 	models.PermissionPurchasingManage,
 	models.PermissionPurchasingApprove,
 	models.PermissionPurchasingReceive,
+	models.PermissionForecastRead,
+	models.PermissionForecastManage,
+	models.PermissionForecastRun,
 }
 
 func DefaultBusinessRole(role models.MemberRole) models.BusinessRole {

@@ -17,8 +17,8 @@ func TestStaffProfileDefaultsAndOverrides(t *testing.T) {
 		allLocations  bool
 		permissionLen int
 	}{
-		{models.RoleOwner, models.BusinessRoleCompanyOwner, true, 12},
-		{models.RoleAdmin, models.BusinessRoleOperationsManager, true, 12},
+		{models.RoleOwner, models.BusinessRoleCompanyOwner, true, 15},
+		{models.RoleAdmin, models.BusinessRoleOperationsManager, true, 15},
 		{models.RoleUser, models.BusinessRoleViewer, false, 0},
 	}
 	for _, test := range tests {

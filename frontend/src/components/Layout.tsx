@@ -1,6 +1,6 @@
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
-  LayoutDashboard, Users, Settings, LogOut, Shield, ChevronDown, Bell, CreditCard, Zap, ChefHat, Link2, UploadCloud, AlertTriangle, ClipboardList, CalendarDays, PackageCheck,
+  LayoutDashboard, Users, Settings, LogOut, Shield, ChevronDown, Bell, CreditCard, Zap, ChefHat, Link2, UploadCloud, AlertTriangle, ClipboardList, CalendarDays, PackageCheck, ChartNoAxesCombined,
   FileText, Image, Globe, Star, Heart, BookOpen, MessageCircle, HelpCircle, Sun, Moon, Megaphone, MapPin,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -15,7 +15,7 @@ import { useState, useRef, useEffect } from 'react';
 import type { LucideIcon } from 'lucide-react';
 
 const iconMap: Record<string, LucideIcon> = {
-  LayoutDashboard, Users, Settings, CreditCard, FileText, Image, Globe, Shield, Zap, Star, Heart, BookOpen, MessageCircle, HelpCircle, ChefHat, Link2, UploadCloud, AlertTriangle, ClipboardList, CalendarDays, PackageCheck,
+  LayoutDashboard, Users, Settings, CreditCard, FileText, Image, Globe, Shield, Zap, Star, Heart, BookOpen, MessageCircle, HelpCircle, ChefHat, Link2, UploadCloud, AlertTriangle, ClipboardList, CalendarDays, PackageCheck, ChartNoAxesCombined,
 };
 
 export default function Layout() {
@@ -95,6 +95,7 @@ export default function Layout() {
     { path: '/purchasing/orders', icon: ClipboardList, label: 'Purchase orders' },
     { path: '/purchasing/calendar', icon: CalendarDays, label: 'Delivery calendar' },
     { path: '/purchasing/receipts', icon: PackageCheck, label: 'Goods receipts' },
+    { path: '/forecast', icon: ChartNoAxesCombined, label: 'Forecasting' },
     ...(showTeam ? [{ path: '/team', icon: Users, label: 'Team' }] : []),
     { path: '/plan', icon: CreditCard, label: 'Plan' },
     { path: '/settings', icon: Settings, label: 'Settings' },
