@@ -18,7 +18,7 @@ The bottleneck for building software isn't engineering capacity anymore — it's
 
 This fork preserves LastSaaS as its infrastructure baseline and is evolving it into a multi-tenant restaurant inventory and forecasting product. The original authentication, tenant isolation, billing, administration, telemetry, deployment, and platform-branding capabilities remain the foundation; restaurant product modules are added incrementally in the same Go modular monolith and React application.
 
-The current application version is **5.0.0**. `VERSION` is the runtime version source, while this ledger ties product evolution to immutable Git commits. Planned versions are targets and retain `TBD` until implementation is committed.
+The current application version is **6.0.0**. `VERSION` is the runtime version source, while this ledger ties product evolution to immutable Git commits. Planned versions are targets and retain `TBD` until implementation is committed.
 
 ### Boilerplate Baseline
 
@@ -44,12 +44,12 @@ The current application version is **5.0.0**. `VERSION` is the runtime version s
 | 3.0.0 | [`5ff9445`](https://github.com/cristianCiu/lastsaas/commit/5ff9445) | Append-only inventory journal, lots and FEFO, transactional transfers/reversals/reconciliation, safe stock counts, count recovery, and responsive inventory operations UI. |
 | 4.0.0 | [`37ff6a7`](https://github.com/cristianCiu/lastsaas/commit/37ff6a7) | Versioned recipes and subrecipes, time-valid POS mappings, idempotent CSV sales imports, theoretical inventory consumption, cancellation reversals, and recipe, mapping, import, and unmapped-sales UI. |
 | 5.0.0 | [`a886431`](https://github.com/cristianCiu/lastsaas/commit/a886431) | Purchase orders with manager approval and delivery calendars, partial goods receipts with variance/lot/expiry capture, inventory postings/reversals, and tenant/location-branded PDF and explicit email document workflows. |
+| 6.0.0 | [`5c801ba`](https://github.com/cristianCiu/lastsaas/commit/5c801ba) | Deterministic demand forecasts with uncertainty and data maturity, durable leased forecast jobs, inventory coverage, explainable reorder recommendations, and explicit supplier-selected purchase-order drafts. |
 
 ### Planned Product Roadmap
 
 | Target app version | Commit | Planned feature |
 |---|---|---|
-| 6.0.0 | `TBD` | Forecasting and reorder recommendations: statistical baselines, leased worker jobs, guest/demand/range forecasts, uncertainty bands, backtesting, and manual approval only. |
 | 7.0.0 | `TBD` | Pilot hardening: complete customer onboarding, GDPR lifecycle, backup/restore validation, operational health, accessibility, performance, security, and shadow-mode KPIs. |
 
 Detailed scope and exit gates live in [`docs/IMPLEMENTATION_SEQUENCE.md`](docs/IMPLEMENTATION_SEQUENCE.md), [`WARENWIRTSCHAFT_SAAS_BAUPLAN.md`](WARENWIRTSCHAFT_SAAS_BAUPLAN.md), and [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md).
