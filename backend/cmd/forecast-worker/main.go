@@ -1,5 +1,6 @@
-// forecast-worker is the durable v6 execution process. It claims one Mongo
-// lease at a time and exits only on SIGINT/SIGTERM.
+// forecast-worker is the durable forecast execution process. It claims one
+// Mongo lease at a time, publishes a health heartbeat, and exits only on
+// SIGINT/SIGTERM.
 package main
 
 import (
@@ -15,6 +16,7 @@ import (
 	"lastsaas/internal/config"
 	"lastsaas/internal/db"
 	"lastsaas/internal/forecast"
+	"lastsaas/internal/health"
 	"lastsaas/internal/syslog"
 )
 
@@ -38,6 +40,9 @@ func main() {
 	}
 	owner += ":" + strconv.Itoa(os.Getpid())
 	worker := &forecast.Worker{Jobs: forecast.NewJobStore(database, forecast.DefaultLeaseConfig()), Store: forecast.NewMongoStore(database), Log: logger, Owner: owner}
+	heartbeat := health.NewWorkerHeartbeat(database, logger, owner)
+	heartbeat.Start()
+	defer heartbeat.Stop()
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	interval := 2 * time.Second

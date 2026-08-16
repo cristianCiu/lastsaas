@@ -89,8 +89,15 @@ func (m *AuthMiddleware) authenticateJWT(w http.ResponseWriter, r *http.Request,
 	var user models.User
 	err = m.db.Users().FindOne(r.Context(), bson.M{"_id": userID}).Decode(&user)
 	if err != nil {
-		http.Error(w, `{"error":"User not found"}`, http.StatusUnauthorized)
-		return
+		// Offboarding intentionally erases a standalone owner account. Permit
+		// that owner's already-issued JWT to retry only the opaque, idempotent
+		// offboarding endpoint; it cannot access any normal API route.
+		if m.isOffboardingRetry(r, userID) {
+			user = models.User{ID: userID, IsActive: true}
+		} else {
+			http.Error(w, `{"error":"User not found"}`, http.StatusUnauthorized)
+			return
+		}
 	}
 
 	if !user.IsActive {
@@ -103,6 +110,21 @@ func (m *AuthMiddleware) authenticateJWT(w http.ResponseWriter, r *http.Request,
 		ctx = context.WithValue(ctx, ImpersonatedByContextKey, claims.ImpersonatedBy)
 	}
 	next.ServeHTTP(w, r.WithContext(ctx))
+}
+
+func (m *AuthMiddleware) isOffboardingRetry(r *http.Request, userID primitive.ObjectID) bool {
+	if r.Method != http.MethodPost || (r.URL.Path != "/api/tenant/offboard" && r.URL.Path != "/api/tenant/offboarding") {
+		return false
+	}
+	tenantID, err := primitive.ObjectIDFromHex(strings.TrimSpace(r.Header.Get("X-Tenant-ID")))
+	if err != nil {
+		return false
+	}
+	var tombstone models.TenantOffboardingTombstone
+	if err := m.db.TenantOffboardingTombstones().FindOne(r.Context(), bson.M{"tenantId": tenantID, "ownerId": userID, "status": bson.M{"$in": bson.A{models.TenantOffboardingStarted, models.TenantOffboardingCompleted}}}).Decode(&tombstone); err != nil {
+		return false
+	}
+	return true
 }
 
 func (m *AuthMiddleware) authenticateAPIKey(w http.ResponseWriter, r *http.Request, next http.Handler, rawKey string) {

@@ -295,3 +295,19 @@ type ReorderCoverage struct {
 	InboundSourceIDs         []string           `json:"inboundSourceIds,omitempty" bson:"inboundSourceIds,omitempty" validate:"omitempty,max=1000,dive,not_blank,max=128"`
 	CreatedAt                time.Time          `json:"createdAt" bson:"createdAt" validate:"required"`
 }
+
+// ShadowKPIReport stores evaluation results for a forecast run without
+// changing the forecast, inventory, or purchasing lanes. Reports are scoped
+// by tenant and location and are immutable once written.
+type ShadowKPIReport struct {
+	ID              primitive.ObjectID `json:"id" bson:"_id,omitempty" validate:"required"`
+	TenantID        primitive.ObjectID `json:"-" bson:"tenantId" validate:"required"`
+	LocationID      primitive.ObjectID `json:"locationId" bson:"locationId" validate:"required"`
+	RunID           primitive.ObjectID `json:"runId" bson:"runId" validate:"required"`
+	EvaluationStart time.Time          `json:"evaluationStart" bson:"evaluationStart" validate:"required"`
+	EvaluationEnd   time.Time          `json:"evaluationEnd" bson:"evaluationEnd" validate:"required"`
+	ActualsThrough  *time.Time         `json:"actualsThrough,omitempty" bson:"actualsThrough,omitempty"`
+	Metrics         map[string]float64 `json:"metrics" bson:"metrics" validate:"required,min=1,max=64"`
+	CreatedBy       primitive.ObjectID `json:"createdBy" bson:"createdBy" validate:"required"`
+	CreatedAt       time.Time          `json:"createdAt" bson:"createdAt" validate:"required"`
+}

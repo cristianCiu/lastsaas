@@ -31,6 +31,8 @@ func TestForecastExecutionAndReadRoutesRegister(t *testing.T) {
 		"/product/locations/{locationId}/forecast/runs/{runId}/recommendations/{recommendationId}":   http.MethodGet,
 		"/product/locations/{locationId}/forecast/runs/{runId}/coverage":                             http.MethodGet,
 		"/product/locations/{locationId}/forecast/runs/{runId}/coverage/{coverageId}":                http.MethodGet,
+		"/product/locations/{locationId}/forecast/shadow-kpis":                                       http.MethodGet,
+		"/product/locations/{locationId}/forecast/shadow-kpis/{reportId}":                            http.MethodGet,
 	}
 	seen := map[string]bool{}
 	if err := router.Walk(func(route *mux.Route, _ *mux.Router, _ []*mux.Route) error {
@@ -52,6 +54,15 @@ func TestForecastExecutionAndReadRoutesRegister(t *testing.T) {
 		if !seen[path] {
 			t.Errorf("route %s was not registered", path)
 		}
+	}
+}
+
+func TestShadowKPIReportFilterIsTenantAndLocationScoped(t *testing.T) {
+	tenant := primitive.NewObjectID()
+	location := primitive.NewObjectID()
+	filter := forecastTenantLocationFilter(tenant, location)
+	if filter["tenantId"] != tenant || filter["locationId"] != location {
+		t.Fatalf("shadow KPI report filter lost scope: %#v", filter)
 	}
 }
 

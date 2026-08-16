@@ -2,6 +2,7 @@ package health
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"os"
 	"runtime"
@@ -21,6 +22,7 @@ import (
 	"github.com/shirou/gopsutil/v4/net"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
@@ -137,6 +139,7 @@ func (s *Service) registerNode() {
 		bson.M{
 			"$set": bson.M{
 				"hostname":  hostname(),
+				"component": "api-server",
 				"status":    models.NodeStatusActive,
 				"lastSeen":  now,
 				"version":   version.Current,
@@ -268,6 +271,7 @@ func (s *Service) collectAndStore() {
 
 	// MongoDB stats
 	metric.Mongo = s.collectMongoMetrics(ctx)
+	metric.Forecast = s.collectForecastMetrics(ctx, metric.Timestamp)
 
 	// Go runtime
 	var memStats runtime.MemStats
@@ -301,6 +305,49 @@ func (s *Service) collectAndStore() {
 	if s.onHealthSnapshot != nil {
 		s.onHealthSnapshot(metric)
 	}
+}
+
+func (s *Service) collectForecastMetrics(ctx context.Context, now time.Time) models.ForecastHealthMetrics {
+	result := models.ForecastHealthMetrics{FreshnessSeconds: -1, FreshnessStatus: "unknown"}
+	for status, target := range map[models.ForecastJobStatus]*int64{
+		models.ForecastJobQueued:     &result.QueueDepth,
+		models.ForecastJobRunning:    &result.Running,
+		models.ForecastJobRetryWait:  &result.RetryWait,
+		models.ForecastJobDeadLetter: &result.DeadLetter,
+	} {
+		count, err := s.db.ForecastJobs().CountDocuments(ctx, bson.M{"status": status})
+		if err != nil {
+			slog.Warn("health: forecast queue metric error", "status", status, "error", err)
+			continue
+		}
+		*target = count
+	}
+
+	var latest models.ForecastRun
+	err := s.db.ForecastRuns().FindOne(ctx, bson.M{"status": models.ForecastRunSucceeded, "completedAt": bson.M{"$exists": true}}, options.FindOne().SetSort(bson.D{{Key: "completedAt", Value: -1}})).Decode(&latest)
+	if err == nil && latest.CompletedAt != nil {
+		result.LastSuccessfulAt = latest.CompletedAt
+		age := now.Sub(latest.CompletedAt.UTC())
+		if age < 0 {
+			age = 0
+		}
+		result.FreshnessSeconds = int64(age / time.Second)
+		result.FreshnessStatus = "fresh"
+		// A day without a successful forecast is operationally stale. The
+		// exact age remains available for dashboards and alerting.
+		if age > 24*time.Hour {
+			result.FreshnessStatus = "stale"
+		}
+	} else if err != nil && !errors.Is(err, mongo.ErrNoDocuments) {
+		slog.Warn("health: forecast freshness metric error", "error", err)
+	}
+	return result
+}
+
+// GetForecastMetrics returns a point-in-time forecast queue snapshot for
+// callers that need the operational lane without loading a full node series.
+func (s *Service) GetForecastMetrics(ctx context.Context) models.ForecastHealthMetrics {
+	return s.collectForecastMetrics(ctx, time.Now().UTC())
 }
 
 func (s *Service) collectMongoMetrics(ctx context.Context) models.MongoMetrics {

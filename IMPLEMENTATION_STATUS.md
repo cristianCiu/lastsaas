@@ -104,7 +104,7 @@ Phase 2: master data and import foundation.
 
 ## Active Task
 
-V6 forecasting and reorder recommendations are complete. Run replica-set transaction coverage when MongoDB is available.
+V7 pilot-hardening preparation is complete. External pilot gates remain incomplete.
 
 ## Known Follow-Ups
 

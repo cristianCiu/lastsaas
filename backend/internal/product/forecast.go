@@ -2,6 +2,7 @@ package product
 
 import (
 	"errors"
+	"math"
 	"net/http"
 	"sort"
 	"strings"
@@ -48,6 +49,14 @@ type forecastRunRequest struct {
 	PolicyID       primitive.ObjectID `json:"policyId" validate:"required"`
 	IdempotencyKey string             `json:"idempotencyKey" validate:"required,min=8,max=128"`
 	CutoffAt       *time.Time         `json:"cutoffAt,omitempty"`
+}
+
+type shadowKPIReportRequest struct {
+	RunID           primitive.ObjectID `json:"runId" validate:"required"`
+	EvaluationStart time.Time          `json:"evaluationStart" validate:"required"`
+	EvaluationEnd   time.Time          `json:"evaluationEnd" validate:"required"`
+	ActualsThrough  *time.Time         `json:"actualsThrough,omitempty"`
+	Metrics         map[string]float64 `json:"metrics" validate:"required,min=1,max=64"`
 }
 
 func requireForecastManager() func(http.Handler) http.Handler {
@@ -427,6 +436,124 @@ func (h *productHandler) listForecastJobs(w http.ResponseWriter, r *http.Request
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"forecastJobs": jobs})
+}
+
+func (h *productHandler) saveShadowKPIReport(w http.ResponseWriter, r *http.Request) {
+	tenant, user, ok := h.importRequest(w, r)
+	if !ok {
+		return
+	}
+	locationID, err := primitive.ObjectIDFromHex(mux.Vars(r)["locationId"])
+	if err != nil {
+		apierror.BadRequest(w, r, "Invalid forecast location ID")
+		return
+	}
+	var request shadowKPIReportRequest
+	if !decodeStrict(w, r, &request) {
+		return
+	}
+	request.EvaluationStart = request.EvaluationStart.UTC()
+	request.EvaluationEnd = request.EvaluationEnd.UTC()
+	if err := validation.Validate(&request); err != nil {
+		apierror.Validation(w, r, err.Error())
+		return
+	}
+	if !request.EvaluationEnd.After(request.EvaluationStart) {
+		apierror.Validation(w, r, "evaluationEnd must be after evaluationStart")
+		return
+	}
+	for name, value := range request.Metrics {
+		if strings.TrimSpace(name) == "" || len(name) > 96 || math.IsNaN(value) || math.IsInf(value, 0) {
+			apierror.Validation(w, r, "metrics must contain finite values and non-blank names")
+			return
+		}
+	}
+	if request.ActualsThrough != nil {
+		value := request.ActualsThrough.UTC()
+		request.ActualsThrough = &value
+	}
+	var run models.ForecastRun
+	if err := h.db.ForecastRuns().FindOne(r.Context(), bson.M{"_id": request.RunID, "tenantId": tenant.ID, "locationId": locationID, "status": models.ForecastRunSucceeded}).Decode(&run); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			apierror.NotFound(w, r, "Forecast run not found")
+		} else {
+			apierror.Internal(w, r, "Failed to verify forecast run")
+		}
+		return
+	}
+	now := time.Now().UTC()
+	report := models.ShadowKPIReport{ID: primitive.NewObjectID(), TenantID: tenant.ID, LocationID: locationID, RunID: request.RunID, EvaluationStart: request.EvaluationStart, EvaluationEnd: request.EvaluationEnd, ActualsThrough: request.ActualsThrough, Metrics: request.Metrics, CreatedBy: user.ID, CreatedAt: now}
+	if err := validation.Validate(&report); err != nil {
+		apierror.Validation(w, r, err.Error())
+		return
+	}
+	if _, err := h.db.ShadowKPIReports().InsertOne(r.Context(), report); err != nil {
+		if !mongo.IsDuplicateKeyError(err) {
+			apierror.Internal(w, r, "Failed to persist shadow KPI report")
+			return
+		}
+		var existing models.ShadowKPIReport
+		if findErr := h.db.ShadowKPIReports().FindOne(r.Context(), bson.M{"tenantId": tenant.ID, "locationId": locationID, "runId": request.RunID, "evaluationStart": request.EvaluationStart, "evaluationEnd": request.EvaluationEnd}).Decode(&existing); findErr != nil {
+			apierror.Internal(w, r, "Failed to load existing shadow KPI report")
+			return
+		}
+		report = existing
+		writeJSON(w, http.StatusOK, map[string]any{"shadowKPIReport": report})
+		return
+	}
+	h.auditForecast(r, "forecast.shadow_kpi_report.created", locationID, report.ID)
+	writeJSON(w, http.StatusCreated, map[string]any{"shadowKPIReport": report})
+}
+
+func (h *productHandler) listShadowKPIReports(w http.ResponseWriter, r *http.Request) {
+	tenantID, locationID, ok := forecastReadScope(r)
+	if !ok {
+		apierror.BadRequest(w, r, "Invalid forecast location or tenant context")
+		return
+	}
+	filter := forecastTenantLocationFilter(tenantID, locationID)
+	if rawRunID := r.URL.Query().Get("runId"); rawRunID != "" {
+		runID, err := primitive.ObjectIDFromHex(rawRunID)
+		if err != nil {
+			apierror.BadRequest(w, r, "Invalid forecast run ID")
+			return
+		}
+		filter["runId"] = runID
+	}
+	if rawReportID := mux.Vars(r)["reportId"]; rawReportID != "" {
+		reportID, err := primitive.ObjectIDFromHex(rawReportID)
+		if err != nil {
+			apierror.BadRequest(w, r, "Invalid shadow KPI report ID")
+			return
+		}
+		filter["_id"] = reportID
+	}
+	if reportID := filter["_id"]; reportID != nil {
+		var report models.ShadowKPIReport
+		err := h.db.ShadowKPIReports().FindOne(r.Context(), filter).Decode(&report)
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			apierror.NotFound(w, r, "Shadow KPI report not found")
+			return
+		}
+		if err != nil {
+			apierror.Internal(w, r, "Failed to load shadow KPI report")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"shadowKPIReport": report})
+		return
+	}
+	cur, err := h.db.ShadowKPIReports().Find(r.Context(), filter, options.Find().SetSort(bson.D{{Key: "evaluationEnd", Value: -1}, {Key: "createdAt", Value: -1}}).SetLimit(100))
+	if err != nil {
+		apierror.Internal(w, r, "Failed to list shadow KPI reports")
+		return
+	}
+	defer cur.Close(r.Context())
+	reports := []models.ShadowKPIReport{}
+	if err := cur.All(r.Context(), &reports); err != nil {
+		apierror.Internal(w, r, "Failed to list shadow KPI reports")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"shadowKPIReports": reports})
 }
 
 func (h *productHandler) listForecastInputs(w http.ResponseWriter, r *http.Request) {

@@ -22,6 +22,8 @@ func AllSchemas() []CollectionSchema {
 	return []CollectionSchema{
 		usersSchema(),
 		tenantsSchema(),
+		tenantOffboardingTombstonesSchema(),
+		tenantOffboardingAuditSchema(),
 		tenantMembershipsSchema(),
 		invitationsSchema(),
 		plansSchema(),
@@ -74,6 +76,7 @@ func AllSchemas() []CollectionSchema {
 		forecastOverridesSchema(),
 		reorderRecommendationsSchema(),
 		forecastCoveragesSchema(),
+		shadowKPIReportsSchema(),
 		importRunsSchema(),
 		stockPostingsSchema(),
 		stockMovementsSchema(),
@@ -620,14 +623,15 @@ func (m *MongoDB) EnsureSchemaValidation() error {
 
 func usersSchema() CollectionSchema {
 	return CollectionSchema{
-		Collection: "users",
+		Collection: "users", Critical: true, ValidationLevel: "strict",
 		Schema: bson.M{
 			"$jsonSchema": bson.M{
-				"bsonType": "object",
-				"required": bson.A{"email", "displayName", "authMethods", "createdAt", "updatedAt"},
+				"bsonType": "object", "additionalProperties": false,
+				"required": bson.A{"_id", "email", "displayName", "authMethods", "createdAt", "updatedAt"},
 				"properties": bson.M{
+					"_id": bson.M{"bsonType": "objectId"},
 					"email": bson.M{
-						"bsonType": "string",
+						"bsonType": "string", "minLength": 1, "maxLength": 254,
 					},
 					"displayName": bson.M{
 						"bsonType":  "string",
@@ -658,6 +662,12 @@ func usersSchema() CollectionSchema {
 						"bsonType": "string",
 						"enum":     bson.A{"light", "dark", "system", ""},
 					},
+					"passwordHash": bson.M{"bsonType": "string"},
+					"googleId":     bson.M{"bsonType": "string"}, "githubId": bson.M{"bsonType": "string"}, "microsoftId": bson.M{"bsonType": "string"},
+					"totpSecret": bson.M{"bsonType": "string"}, "totpEnabled": bson.M{"bsonType": "bool"},
+					"totpVerifiedAt": bson.M{"bsonType": "date"}, "recoveryCodes": bson.M{"bsonType": "array", "items": bson.M{"bsonType": "string"}},
+					"onboardingCompletedAt": bson.M{"bsonType": "date"}, "lastLoginAt": bson.M{"bsonType": "date"}, "lastVerificationSent": bson.M{"bsonType": "date"},
+					"failedLoginAttempts": bson.M{"bsonType": "int", "minimum": 0}, "accountLockedUntil": bson.M{"bsonType": "date"}, "trialUsedAt": bson.M{"bsonType": "date"},
 				},
 			},
 		},
@@ -666,12 +676,13 @@ func usersSchema() CollectionSchema {
 
 func tenantsSchema() CollectionSchema {
 	return CollectionSchema{
-		Collection: "tenants",
+		Collection: "tenants", Critical: true, ValidationLevel: "strict",
 		Schema: bson.M{
 			"$jsonSchema": bson.M{
-				"bsonType": "object",
-				"required": bson.A{"name", "slug", "createdAt", "updatedAt"},
+				"bsonType": "object", "additionalProperties": false,
+				"required": bson.A{"_id", "name", "slug", "createdAt", "updatedAt"},
 				"properties": bson.M{
+					"_id": bson.M{"bsonType": "objectId"},
 					"name": bson.M{
 						"bsonType":  "string",
 						"minLength": 1,
@@ -704,9 +715,72 @@ func tenantsSchema() CollectionSchema {
 					"seatQuantity": bson.M{
 						"bsonType": "int",
 					},
+					"offboardingStatus": bson.M{
+						"bsonType": "string",
+						"enum":     bson.A{"", "started", "completed"},
+					},
+					"offboardingTombstoneId": bson.M{
+						"bsonType": "objectId",
+					},
+					"offboardedAt": bson.M{
+						"bsonType": "date",
+					},
+					"planId": bson.M{"bsonType": "objectId"}, "billingWaived": bson.M{"bsonType": "bool"},
+					"subscriptionCredits": bson.M{"bsonType": "long"}, "purchasedCredits": bson.M{"bsonType": "long"},
+					"stripeCustomerId": bson.M{"bsonType": "string"}, "stripeSubscriptionId": bson.M{"bsonType": "string"},
+					"billingInterval": bson.M{"bsonType": "string"}, "currentPeriodEnd": bson.M{"bsonType": "date"}, "canceledAt": bson.M{"bsonType": "date"},
 				},
 			},
 		},
+	}
+}
+
+func tenantOffboardingTombstonesSchema() CollectionSchema {
+	return CollectionSchema{
+		Collection: "tenant_offboarding_tombstones", Critical: true, ValidationLevel: "strict",
+		Schema: bson.M{"$jsonSchema": bson.M{
+			"bsonType": "object", "additionalProperties": false,
+			"required": bson.A{"_id", "tenantId", "ownerId", "status", "actorPseudonyms", "version", "startedAt", "updatedAt"},
+			"properties": bson.M{
+				"_id":      bson.M{"bsonType": "objectId"},
+				"tenantId": bson.M{"bsonType": "objectId"},
+				"ownerId":  bson.M{"bsonType": "objectId"},
+				"status":   bson.M{"bsonType": "string", "enum": bson.A{"started", "completed"}},
+				"actorPseudonyms": bson.M{"bsonType": "array", "maxItems": 10000, "items": bson.M{
+					"bsonType": "object", "additionalProperties": false,
+					"required": bson.A{"actorId", "pseudonym"},
+					"properties": bson.M{
+						"actorId":   bson.M{"bsonType": "objectId"},
+						"pseudonym": bson.M{"bsonType": "string", "pattern": "^[0-9a-f]{24}$"},
+					},
+				}},
+				"version":     bson.M{"bsonType": "long", "minimum": 1},
+				"startedAt":   bson.M{"bsonType": "date"},
+				"completedAt": bson.M{"bsonType": "date"},
+				"updatedAt":   bson.M{"bsonType": "date"},
+			},
+		}},
+	}
+}
+
+func tenantOffboardingAuditSchema() CollectionSchema {
+	return CollectionSchema{
+		Collection: "tenant_offboarding_audit", Critical: true, ValidationLevel: "strict",
+		Schema: bson.M{"$jsonSchema": bson.M{
+			"bsonType": "object", "additionalProperties": false,
+			"required": bson.A{"_id", "tenantId", "tombstoneId", "event", "revokedRefreshTokens", "deletedProfiles", "deletedAccounts", "pseudonymizedDocuments", "createdAt"},
+			"properties": bson.M{
+				"_id":                    bson.M{"bsonType": "objectId"},
+				"tenantId":               bson.M{"bsonType": "objectId"},
+				"tombstoneId":            bson.M{"bsonType": "objectId"},
+				"event":                  bson.M{"bsonType": "string", "enum": bson.A{"started", "completed"}},
+				"revokedRefreshTokens":   bson.M{"bsonType": "long", "minimum": 0},
+				"deletedProfiles":        bson.M{"bsonType": "long", "minimum": 0},
+				"deletedAccounts":        bson.M{"bsonType": "long", "minimum": 0},
+				"pseudonymizedDocuments": bson.M{"bsonType": "long", "minimum": 0},
+				"createdAt":              bson.M{"bsonType": "date"},
+			},
+		}},
 	}
 }
 

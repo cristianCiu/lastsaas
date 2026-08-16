@@ -199,6 +199,10 @@ func (m *MongoDB) ensureIndexes() {
 			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "locationId", Value: 1}, {Key: "runId", Value: 1}, {Key: "itemId", Value: 1}}, Options: options.Index().SetName("forecast_coverages_scope_run_item_unique").SetUnique(true)},
 			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "locationId", Value: 1}, {Key: "createdAt", Value: -1}}, Options: options.Index().SetName("forecast_coverages_scope_created")},
 		}},
+		{"shadow_kpi_reports", []mongo.IndexModel{
+			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "locationId", Value: 1}, {Key: "runId", Value: 1}, {Key: "evaluationEnd", Value: -1}}, Options: options.Index().SetName("shadow_kpi_reports_scope_run_end")},
+			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "locationId", Value: 1}, {Key: "runId", Value: 1}, {Key: "evaluationStart", Value: 1}, {Key: "evaluationEnd", Value: 1}}, Options: options.Index().SetName("shadow_kpi_reports_scope_period_unique").SetUnique(true)},
+		}},
 		{"import_runs", []mongo.IndexModel{
 			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "target", Value: 1}, {Key: "idempotencyKey", Value: 1}}, Options: options.Index().SetName("import_runs_tenant_target_key_unique").SetUnique(true)},
 			{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "createdAt", Value: -1}}, Options: options.Index().SetName("import_runs_tenant_created")},
@@ -294,6 +298,20 @@ func (m *MongoDB) ensureIndexes() {
 				{Keys: bson.D{{Key: "billingStatus", Value: 1}, {Key: "isActive", Value: 1}}},
 				{Keys: bson.D{{Key: "planId", Value: 1}}},
 				{Keys: bson.D{{Key: "trialUsedAt", Value: 1}}, Options: options.Index().SetSparse(true)},
+			},
+		},
+		{
+			"tenant_offboarding_tombstones",
+			[]mongo.IndexModel{
+				{Keys: bson.D{{Key: "tenantId", Value: 1}}, Options: options.Index().SetName("tenant_offboarding_tombstones_tenant_unique").SetUnique(true)},
+				{Keys: bson.D{{Key: "status", Value: 1}, {Key: "updatedAt", Value: -1}}, Options: options.Index().SetName("tenant_offboarding_tombstones_status_updated")},
+			},
+		},
+		{
+			"tenant_offboarding_audit",
+			[]mongo.IndexModel{
+				{Keys: bson.D{{Key: "tenantId", Value: 1}, {Key: "createdAt", Value: -1}}, Options: options.Index().SetName("tenant_offboarding_audit_tenant_created")},
+				{Keys: bson.D{{Key: "tombstoneId", Value: 1}, {Key: "event", Value: 1}}, Options: options.Index().SetName("tenant_offboarding_audit_event_unique").SetUnique(true)},
 			},
 		},
 		{
@@ -530,7 +548,7 @@ func (m *MongoDB) ensureIndexes() {
 		"api_keys": true, "config_vars": true, "stripe_mappings": true,
 		"custom_pages": true, "branding_assets": true, "webauthn_credentials": true,
 		"sso_connections": true, "auth_codes": true,
-		"tenant_memberships": true, "locations": true, "restaurant_settings": true, "tenant_branding": true, "location_branding": true, "tenant_branding_assets": true, "storage_areas": true, "staff_profiles": true, "units": true, "categories": true, "items": true, "item_conversions": true, "suppliers": true, "supplier_items": true, "recipes": true, "recipe_versions": true, "recipe_components": true, "external_product_mappings": true, "sales": true, "sales_lines": true, "unresolved_sale_lines": true, "sales_import_runs": true, "purchase_orders": true, "purchase_order_lines": true, "delivery_calendars": true, "goods_receipts": true, "goods_receipt_lines": true, "purchase_order_email_deliveries": true, "forecast_datasets": true, "forecast_input_rows": true, "forecast_jobs": true, "forecast_runs": true, "forecast_points": true, "forecast_metrics": true, "forecast_policies": true, "guest_plans": true, "forecast_overrides": true, "reorder_recommendations": true, "forecast_coverages": true, "import_runs": true, "stock_postings": true, "stock_movements": true, "stock_balances": true, "stock_lots": true, "stock_counts": true, "stock_count_lines": true, "reconciliation_runs": true,
+		"tenant_memberships": true, "tenant_offboarding_tombstones": true, "tenant_offboarding_audit": true, "locations": true, "restaurant_settings": true, "tenant_branding": true, "location_branding": true, "tenant_branding_assets": true, "storage_areas": true, "staff_profiles": true, "units": true, "categories": true, "items": true, "item_conversions": true, "suppliers": true, "supplier_items": true, "recipes": true, "recipe_versions": true, "recipe_components": true, "external_product_mappings": true, "sales": true, "sales_lines": true, "unresolved_sale_lines": true, "sales_import_runs": true, "purchase_orders": true, "purchase_order_lines": true, "delivery_calendars": true, "goods_receipts": true, "goods_receipt_lines": true, "purchase_order_email_deliveries": true, "forecast_datasets": true, "forecast_input_rows": true, "forecast_jobs": true, "forecast_runs": true, "forecast_points": true, "forecast_metrics": true, "forecast_policies": true, "guest_plans": true, "forecast_overrides": true, "reorder_recommendations": true, "forecast_coverages": true, "shadow_kpi_reports": true, "import_runs": true, "stock_postings": true, "stock_movements": true, "stock_balances": true, "stock_lots": true, "stock_counts": true, "stock_count_lines": true, "reconciliation_runs": true,
 	}
 
 	for _, idx := range indexes {
@@ -571,6 +589,14 @@ func (m *MongoDB) Users() *mongo.Collection {
 
 func (m *MongoDB) Tenants() *mongo.Collection {
 	return m.Database.Collection("tenants")
+}
+
+func (m *MongoDB) TenantOffboardingTombstones() *mongo.Collection {
+	return m.Database.Collection("tenant_offboarding_tombstones")
+}
+
+func (m *MongoDB) TenantOffboardingAudit() *mongo.Collection {
+	return m.Database.Collection("tenant_offboarding_audit")
 }
 
 func (m *MongoDB) TenantMemberships() *mongo.Collection {
@@ -819,6 +845,10 @@ func (m *MongoDB) ReorderRecommendations() *mongo.Collection {
 }
 func (m *MongoDB) ForecastCoverages() *mongo.Collection {
 	return m.Database.Collection("forecast_coverages")
+}
+
+func (m *MongoDB) ShadowKPIReports() *mongo.Collection {
+	return m.Database.Collection("shadow_kpi_reports")
 }
 
 func (m *MongoDB) ImportRuns() *mongo.Collection { return m.Database.Collection("import_runs") }

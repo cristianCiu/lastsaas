@@ -82,6 +82,12 @@ func (h *HealthHandler) GetCurrent(w http.ResponseWriter, r *http.Request) {
 	respondWithJSON(w, http.StatusOK, map[string]interface{}{"metrics": metrics})
 }
 
+// GetForecastMetrics handles GET /api/admin/health/forecast.
+func (h *HealthHandler) GetForecastMetrics(w http.ResponseWriter, r *http.Request) {
+	metrics := h.service.GetForecastMetrics(r.Context())
+	respondWithJSON(w, http.StatusOK, map[string]interface{}{"forecast": metrics})
+}
+
 // GetIntegrations handles GET /api/admin/health/integrations
 func (h *HealthHandler) GetIntegrations(w http.ResponseWriter, r *http.Request) {
 	results := h.service.GetIntegrationStatus()

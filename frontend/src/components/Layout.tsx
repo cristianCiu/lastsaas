@@ -132,6 +132,7 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen bg-dark-950">
+      <a href="#main-content" className="sr-only z-50 rounded-lg bg-dark-900 px-4 py-3 text-white focus:not-sr-only focus:fixed focus:left-4 focus:top-4">Skip to main content</a>
       <ImpersonationBanner />
       {/* Header */}
       <header className={`sticky ${isImpersonating ? 'top-10' : 'top-0'} z-40 bg-dark-900/80 backdrop-blur-xl border-b border-dark-800`}>
@@ -158,7 +159,7 @@ export default function Layout() {
               </Link>
 
               {isAuthenticated && (
-                <nav className="hidden md:flex items-center gap-1">
+                <nav aria-label="Primary navigation" className="hidden md:flex items-center gap-1">
                   {navItems.map((item) => (
                     <Link
                       key={item.path}
@@ -330,7 +331,7 @@ export default function Layout() {
       )}
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main id="main-content" tabIndex={-1} className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Outlet context={{ setUnreadCount, showTeam }} />
       </main>
     </div>

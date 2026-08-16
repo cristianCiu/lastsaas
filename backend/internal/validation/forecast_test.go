@@ -29,3 +29,16 @@ func TestForecastSnapshotsAndManualGuestPlans(t *testing.T) {
 		t.Fatal("guest plan must never validate as an actual")
 	}
 }
+
+func TestShadowKPIReportValidation(t *testing.T) {
+	id := primitive.NewObjectID()
+	now := time.Now().UTC()
+	report := models.ShadowKPIReport{ID: id, TenantID: id, LocationID: id, RunID: id, EvaluationStart: now.Add(-24 * time.Hour), EvaluationEnd: now, Metrics: map[string]float64{"wape": 0.12}, CreatedBy: id, CreatedAt: now}
+	if err := Validate(&report); err != nil {
+		t.Fatalf("valid shadow KPI report failed: %v", err)
+	}
+	report.Metrics = nil
+	if err := Validate(&report); err == nil {
+		t.Fatal("shadow KPI report without metrics must fail")
+	}
+}

@@ -24,9 +24,11 @@ export default function ConfirmModal({
 }: ConfirmModalProps) {
   const confirmRef = useRef<HTMLButtonElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (!open) return;
+    returnFocusRef.current = document.activeElement as HTMLElement | null;
     cancelRef.current?.focus();
 
     function handleKeyDown(e: KeyboardEvent) {
@@ -49,7 +51,10 @@ export default function ConfirmModal({
     }
 
     document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      returnFocusRef.current?.focus();
+    };
   }, [open, onClose]);
 
   if (!open) return null;
@@ -59,15 +64,15 @@ export default function ConfirmModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-dark-900 rounded-2xl border border-dark-700 p-6 w-full max-w-md" role="dialog" aria-modal="true" aria-labelledby="confirm-modal-title">
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
+      <div className="relative bg-dark-900 rounded-2xl border border-dark-700 p-6 w-full max-w-md" role="dialog" aria-modal="true" aria-labelledby="confirm-modal-title" aria-describedby="confirm-modal-message">
         <div className="flex items-center gap-3 mb-4">
           <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isDanger ? 'bg-red-500/20' : 'bg-primary-500/20'}`}>
             <Icon className={`w-5 h-5 ${isDanger ? 'text-red-400' : 'text-primary-400'}`} />
           </div>
           <h3 id="confirm-modal-title" className="text-lg font-semibold text-white">{title}</h3>
         </div>
-        <p className="text-dark-300 mb-6 text-sm">{message}</p>
+        <p id="confirm-modal-message" className="text-dark-300 mb-6 text-sm">{message}</p>
         <div className="flex justify-end gap-3">
           <button
             ref={cancelRef}

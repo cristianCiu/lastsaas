@@ -1,5 +1,19 @@
 # LastSaaS Version Notes
 
+## v7.0.0 — Pilot-Hardening Preparation
+
+### Included Preparation
+- Tenant offboarding pseudonymizes retained operational records and revokes access.
+- The forecast worker has a separate non-public Fly process configuration.
+- Worker health and shadow KPI reporting are available.
+- Critical workflows have accessibility baseline improvements.
+
+### External Gates Not Complete
+- MongoDB replica-set, backup/restore, Fly deployment, alert, legal/privacy, security, and four-week shadow-pilot evidence remain required.
+- This release does not claim pilot readiness.
+
+---
+
 ## v6.0.0 — August 16, 2026
 
 ### Forecasting And Reorder Recommendations

@@ -24,7 +24,7 @@ const sizeClasses: Record<ButtonSize, string> = {
 export default function Button({ variant = 'primary', size = 'md', className = '', children, ...props }: ButtonProps) {
   return (
     <button
-      className={`font-medium transition-colors ${variantClasses[variant]} ${sizeClasses[size]} ${className}`}
+      className={`font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-400 focus-visible:outline-offset-2 ${variantClasses[variant]} ${sizeClasses[size]} ${className}`}
       {...props}
     >
       {children}

@@ -115,6 +115,11 @@ func setupTestServer(t *testing.T) *testEnv {
 	protectedAuth.HandleFunc("/mfa/disable", authHandler.MFADisable).Methods("POST")
 	protectedAuth.HandleFunc("/delete-account", authHandler.DeleteAccount).Methods("POST")
 
+	offboardingAPI := guarded.PathPrefix("/tenant").Subrouter()
+	offboardingAPI.Use(authMiddleware.RequireAuth)
+	offboardingAPI.HandleFunc("/offboard", tenantHandler.OffboardTenant).Methods("POST")
+	offboardingAPI.HandleFunc("/offboarding", tenantHandler.OffboardTenant).Methods("POST")
+
 	// Tenant routes
 	tenantAPI := guarded.PathPrefix("/tenant").Subrouter()
 	tenantAPI.Use(authMiddleware.RequireAuth)

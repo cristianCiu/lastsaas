@@ -7,7 +7,7 @@ import (
 )
 
 func TestForecastSchemasAreStrictAndRegistered(t *testing.T) {
-	want := []string{"forecast_datasets", "forecast_input_rows", "forecast_jobs", "forecast_runs", "forecast_points", "forecast_metrics", "forecast_policies", "guest_plans", "forecast_overrides", "reorder_recommendations", "forecast_coverages"}
+	want := []string{"forecast_datasets", "forecast_input_rows", "forecast_jobs", "forecast_runs", "forecast_points", "forecast_metrics", "forecast_policies", "guest_plans", "forecast_overrides", "reorder_recommendations", "forecast_coverages", "shadow_kpi_reports"}
 	for _, name := range want {
 		var found *CollectionSchema
 		for _, schema := range AllSchemas() {

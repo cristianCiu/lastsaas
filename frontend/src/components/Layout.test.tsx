@@ -31,6 +31,12 @@ describe('Layout tenant logos', () => {
     expect(screen.getByText('Bistro')).toBeInTheDocument();
   });
 
+  it('provides a skip link and main landmark', () => {
+    render(<MemoryRouter><Layout /></MemoryRouter>);
+    expect(screen.getByRole('link', { name: 'Skip to main content' })).toHaveAttribute('href', '#main-content');
+    expect(screen.getByRole('main')).toHaveAttribute('id', 'main-content');
+  });
+
   it('uses the resolved location display name for workspace identity', () => {
     mocks.resolvedLocationBranding = { displayName: 'Flagship' };
     render(<MemoryRouter><Layout /></MemoryRouter>);

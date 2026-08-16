@@ -16,7 +16,7 @@ const variantClasses: Record<AlertVariant, string> = {
 
 export default function Alert({ variant = 'error', children, className = '' }: AlertProps) {
   return (
-    <div className={`px-3 py-2 border rounded-lg text-sm ${variantClasses[variant]} ${className}`}>
+    <div role={variant === 'error' ? 'alert' : 'status'} aria-live={variant === 'error' ? 'assertive' : 'polite'} className={`px-3 py-2 border rounded-lg text-sm ${variantClasses[variant]} ${className}`}>
       {children}
     </div>
   );

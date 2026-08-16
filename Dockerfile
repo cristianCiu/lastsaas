@@ -7,6 +7,7 @@ RUN go mod download
 COPY backend/ ./
 COPY VERSION ./VERSION
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags "-X lastsaas/internal/version.buildVersion=$(cat VERSION)" -o lastsaas ./cmd/server
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags "-X lastsaas/internal/version.buildVersion=$(cat VERSION)" -o forecast-worker ./cmd/forecast-worker
 
 # Stage 2: Build frontend
 FROM node:22-alpine AS frontend-builder
@@ -23,6 +24,7 @@ WORKDIR /app
 
 # Copy backend binary
 COPY --from=backend-builder /build/lastsaas ./lastsaas
+COPY --from=backend-builder /build/forecast-worker ./forecast-worker
 
 # Runtime config contains environment references only; secrets stay in the environment.
 COPY backend/config/prod.example.yaml ./config/prod.yaml

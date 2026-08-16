@@ -544,6 +544,14 @@ func main() {
 	protectedAuth.HandleFunc("/delete-account", authHandler.DeleteAccount).Methods("POST")
 	protectedAuth.HandleFunc("/export-data", authHandler.ExportData).Methods("GET")
 
+	// Offboarding is authenticated but not tenant-middleware guarded: the
+	// operation makes the tenant inaccessible before it finishes, and retries
+	// must still be able to resume its tombstone.
+	offboardingAPI := guarded.PathPrefix("/tenant").Subrouter()
+	offboardingAPI.Use(authMiddleware.RequireAuth)
+	offboardingAPI.HandleFunc("/offboard", tenantHandler.OffboardTenant).Methods("POST")
+	offboardingAPI.HandleFunc("/offboarding", tenantHandler.OffboardTenant).Methods("POST")
+
 	// Tenant-scoped routes (require JWT + tenant context)
 	tenantAPI := guarded.PathPrefix("/tenant").Subrouter()
 	tenantAPI.Use(authMiddleware.RequireAuth)
@@ -700,6 +708,7 @@ func main() {
 	adminAPI.HandleFunc("/health/nodes", healthHandler.ListNodes).Methods("GET")
 	adminAPI.HandleFunc("/health/metrics", healthHandler.GetMetrics).Methods("GET")
 	adminAPI.HandleFunc("/health/current", healthHandler.GetCurrent).Methods("GET")
+	adminAPI.HandleFunc("/health/forecast", healthHandler.GetForecastMetrics).Methods("GET")
 	adminAPI.HandleFunc("/health/integrations", healthHandler.GetIntegrations).Methods("GET")
 	adminAPI.HandleFunc("/health/test-email", healthHandler.SendTestEmail).Methods("POST")
 	adminAPI.HandleFunc("/promotions", promotionsHandler.ListPromotions).Methods("GET")

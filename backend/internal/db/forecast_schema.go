@@ -122,3 +122,16 @@ func forecastCoveragesSchema() CollectionSchema {
 		},
 	}}}
 }
+
+func shadowKPIReportsSchema() CollectionSchema {
+	return CollectionSchema{Collection: "shadow_kpi_reports", Critical: true, ValidationLevel: "strict", Schema: bson.M{"$jsonSchema": bson.M{
+		"bsonType": "object", "additionalProperties": false,
+		"required": bson.A{"_id", "tenantId", "locationId", "runId", "evaluationStart", "evaluationEnd", "metrics", "createdBy", "createdAt"},
+		"properties": bson.M{
+			"_id": bson.M{"bsonType": "objectId"}, "tenantId": bson.M{"bsonType": "objectId"}, "locationId": bson.M{"bsonType": "objectId"}, "runId": bson.M{"bsonType": "objectId"},
+			"evaluationStart": bson.M{"bsonType": "date"}, "evaluationEnd": bson.M{"bsonType": "date"}, "actualsThrough": bson.M{"bsonType": "date"},
+			"metrics":   bson.M{"bsonType": "object", "minProperties": int32(1), "maxProperties": int32(64), "additionalProperties": bson.M{"bsonType": "double"}},
+			"createdBy": bson.M{"bsonType": "objectId"}, "createdAt": bson.M{"bsonType": "date"},
+		},
+	}, "$expr": bson.M{"$gt": bson.A{"$evaluationEnd", "$evaluationStart"}}}}
+}

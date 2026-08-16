@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 	"lastsaas/internal/events"
 	"lastsaas/internal/middleware"
 	"lastsaas/internal/models"
+	"lastsaas/internal/offboarding"
 	"lastsaas/internal/product"
 	stripeservice "lastsaas/internal/stripe"
 	"lastsaas/internal/syslog"
@@ -43,6 +45,43 @@ func NewTenantHandler(database *db.MongoDB, emailService *email.ResendService, e
 		events:       emitter,
 		syslog:       sysLogger,
 	}
+}
+
+// OffboardTenant is intentionally outside RequireTenant: the operation fences
+// the tenant at its start, but the owner must still be able to retry and
+// complete a started tombstone after that fence is in place.
+func (h *TenantHandler) OffboardTenant(w http.ResponseWriter, r *http.Request) {
+	user, ok := middleware.GetUserFromContext(r.Context())
+	if !ok {
+		respondWithError(w, http.StatusUnauthorized, "Not authenticated")
+		return
+	}
+	tenantID, err := primitive.ObjectIDFromHex(strings.TrimSpace(r.Header.Get("X-Tenant-ID")))
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid tenant ID")
+		return
+	}
+
+	result, err := offboarding.NewService(h.db).Offboard(r.Context(), tenantID, user.ID)
+	if err != nil {
+		switch {
+		case errors.Is(err, offboarding.ErrOwnerAuthorization):
+			respondWithError(w, http.StatusForbidden, "Only the tenant owner can offboard this tenant")
+		case errors.Is(err, offboarding.ErrTenantNotFound):
+			respondWithError(w, http.StatusNotFound, "Tenant not found")
+		case errors.Is(err, offboarding.ErrRootTenant):
+			respondWithError(w, http.StatusForbidden, "The root tenant cannot be offboarded")
+		default:
+			slog.Error("tenant offboarding failed", "tenantId", tenantID.Hex(), "error", err)
+			respondWithError(w, http.StatusInternalServerError, "Tenant offboarding failed")
+		}
+		return
+	}
+
+	if h.syslog != nil {
+		h.syslog.Log(r.Context(), models.LogHigh, fmt.Sprintf("tenant_offboarding_%s tombstone=%s", result.Status, result.TombstoneID.Hex()))
+	}
+	respondWithJSON(w, http.StatusOK, result)
 }
 
 // --- Request types ---

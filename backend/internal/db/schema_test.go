@@ -51,6 +51,31 @@ func TestAllSchemasIncludesStrictLocationsSchema(t *testing.T) {
 	}
 }
 
+func TestOffboardingSchemasAreStrictAndRegistered(t *testing.T) {
+	want := map[string]bool{"tenant_offboarding_tombstones": false, "tenant_offboarding_audit": false}
+	for _, schema := range AllSchemas() {
+		if _, ok := want[schema.Collection]; !ok {
+			continue
+		}
+		if !schema.Critical || schema.ValidationLevel != "strict" {
+			t.Errorf("%s must be critical and strict", schema.Collection)
+		}
+		jsonSchema := schema.Schema["$jsonSchema"].(bson.M)
+		if jsonSchema["additionalProperties"] != false {
+			t.Errorf("%s must reject additional properties", schema.Collection)
+		}
+		if jsonSchema["properties"].(bson.M)["_id"] == nil {
+			t.Errorf("%s must validate its immutable id", schema.Collection)
+		}
+		want[schema.Collection] = true
+	}
+	for collection, found := range want {
+		if !found {
+			t.Errorf("%s schema missing", collection)
+		}
+	}
+}
+
 func TestRestaurantCollectionsUseStrictCriticalSchemas(t *testing.T) {
 	want := map[string]int{"restaurant_settings": 8, "tenant_branding": 8, "location_branding": 10, "storage_areas": 9}
 	for _, schema := range AllSchemas() {

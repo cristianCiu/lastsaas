@@ -18,27 +18,49 @@ const (
 type SystemNode struct {
 	ID        primitive.ObjectID `json:"id" bson:"_id,omitempty"`
 	MachineID string             `json:"machineId" bson:"machineId"`
-	Hostname  string             `json:"hostname" bson:"hostname"`
-	Status    NodeStatus         `json:"status" bson:"status"`
-	StartedAt time.Time          `json:"startedAt" bson:"startedAt"`
-	LastSeen  time.Time          `json:"lastSeen" bson:"lastSeen"`
-	Version   string             `json:"version" bson:"version"`
-	GoVersion string             `json:"goVersion" bson:"goVersion"`
+	// Component identifies the process emitting the heartbeat. It is optional
+	// for backwards compatibility with nodes registered before worker
+	// heartbeats were introduced.
+	Component string     `json:"component,omitempty" bson:"component,omitempty"`
+	Hostname  string     `json:"hostname" bson:"hostname"`
+	Status    NodeStatus `json:"status" bson:"status"`
+	StartedAt time.Time  `json:"startedAt" bson:"startedAt"`
+	LastSeen  time.Time  `json:"lastSeen" bson:"lastSeen"`
+	Version   string     `json:"version" bson:"version"`
+	GoVersion string     `json:"goVersion" bson:"goVersion"`
 }
+
+// ForecastHealthMetrics is the operational view of the durable forecast
+// queue. It is deliberately separate from forecast result metrics: these
+// values describe whether the execution lane is keeping up and whether its
+// output is fresh.
+type ForecastHealthMetrics struct {
+	QueueDepth       int64      `json:"queueDepth" bson:"queueDepth"`
+	Running          int64      `json:"running" bson:"running"`
+	RetryWait        int64      `json:"retryWait" bson:"retryWait"`
+	DeadLetter       int64      `json:"deadLetter" bson:"deadLetter"`
+	LastSuccessfulAt *time.Time `json:"lastSuccessfulAt,omitempty" bson:"lastSuccessfulAt,omitempty"`
+	FreshnessSeconds int64      `json:"freshnessSeconds" bson:"freshnessSeconds"`
+	FreshnessStatus  string     `json:"freshnessStatus" bson:"freshnessStatus"`
+}
+
+// ForecastMetrics is the concise name used by health consumers.
+type ForecastMetrics = ForecastHealthMetrics
 
 // SystemMetric represents a point-in-time metrics snapshot from a single node.
 type SystemMetric struct {
-	ID        primitive.ObjectID `json:"id" bson:"_id,omitempty"`
-	NodeID    string             `json:"nodeId" bson:"nodeId"`
-	Timestamp time.Time          `json:"timestamp" bson:"timestamp"`
-	CPU       CPUMetrics         `json:"cpu" bson:"cpu"`
-	Memory    MemoryMetrics      `json:"memory" bson:"memory"`
-	Disk      DiskMetrics        `json:"disk" bson:"disk"`
-	Network   NetworkMetrics     `json:"network" bson:"network"`
-	HTTP      HTTPMetrics        `json:"http" bson:"http"`
-	Mongo     MongoMetrics       `json:"mongo" bson:"mongo"`
+	ID           primitive.ObjectID      `json:"id" bson:"_id,omitempty"`
+	NodeID       string                  `json:"nodeId" bson:"nodeId"`
+	Timestamp    time.Time               `json:"timestamp" bson:"timestamp"`
+	CPU          CPUMetrics              `json:"cpu" bson:"cpu"`
+	Memory       MemoryMetrics           `json:"memory" bson:"memory"`
+	Disk         DiskMetrics             `json:"disk" bson:"disk"`
+	Network      NetworkMetrics          `json:"network" bson:"network"`
+	HTTP         HTTPMetrics             `json:"http" bson:"http"`
+	Mongo        MongoMetrics            `json:"mongo" bson:"mongo"`
 	GoRuntime    GoRuntimeMetrics        `json:"goRuntime" bson:"goRuntime"`
 	Integrations IntegrationCountMetrics `json:"integrations" bson:"integrations"`
+	Forecast     ForecastHealthMetrics   `json:"forecast" bson:"forecast"`
 }
 
 type CPUMetrics struct {
