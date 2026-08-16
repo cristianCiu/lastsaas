@@ -110,7 +110,7 @@ V7 pilot-hardening preparation is complete. External pilot gates remain incomple
 
 - **Gate 1 — Replica-set verification:** Complete. A disposable Atlas test deployment passed sequential `inventory`, `product`, `forecast`, and `offboarding` integration test packages.
 - **Gate 2 — Backup and restore drill:** Deferred. Staging does not use a paid Atlas backup tier. Complete this gate before production on a dedicated Atlas tier with backups/PITR.
-- **Gate 3 — Fly worker deployment and alert drill:** Incomplete.
+- **Gate 3 — Fly worker deployment and alert drill:** Deferred. Complete after the paid staging Fly app and worker process are available.
 - **Gate 4 — Privacy/legal retention approval:** Incomplete.
 - **Gate 5 — Four-week shadow pilot:** Incomplete.
 
